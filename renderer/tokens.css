@@ -1,0 +1,160 @@
+/* FeatherDown — design tokens.
+   Part 1: colour tokens, verbatim from DESIGN_TOKENS.md §5 (pinned brand, do not edit values).
+   Part 2: scale tokens from phase 02 decisions (spacing, type, fonts, radii, motion).
+   Every component value must trace back to a token here. */
+
+/* ================= Part 1 — Colour (DESIGN_TOKENS.md §5) ================= */
+
+:root {
+  color-scheme: light;
+
+  --app-bg: #F5F3ED;
+  --sidebar-bg: #EFEEE7;
+  --editor-bg: #FFFFFF;
+  --preview-bg: #FAF9F5;
+
+  --surface-hover: #EAE9E1;
+  --surface-active: #E2E4D9;
+
+  --border: #E4E2D9;
+  --border-strong: #D4D3C8;
+
+  --text-primary: #292D26;
+  --text-secondary: #5D5F59; /* contrast fit from #73766B (4.18:1 -> 5.8:1 on app-bg); hue preserved, value darkened — see decisions log 2026-11-23 */
+  --text-muted: #6C6D62;     /* contrast fit from #A0A195 (2.36:1 -> 4.7:1 on app-bg) */
+
+  --accent: #587858;
+  --accent-hover: #466747;
+  --accent-soft: #E6EDE4;
+
+  --success: #648665;
+  --warning: #B68A48;
+  --danger: #B85C52;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --app-bg: #20231F;
+  --sidebar-bg: #242821;
+  --editor-bg: #292D28;
+  --preview-bg: #252923;
+
+  --surface-hover: #32372F;
+  --surface-active: #394237;
+
+  --border: #393E36;
+  --border-strong: #4A5046;
+
+  --text-primary: #E8E8DE;
+  --text-secondary: #B5B8AD;
+  --text-muted: #8B9085; /* contrast fit from #858A7D (4.23:1 -> 4.6:1 on sidebar-bg) */
+
+  --accent: #A0BC98;
+  --accent-hover: #B5CBAE;
+  --accent-soft: #354538;
+
+  --success: #A0BC98;
+  --warning: #D2AA70;
+  --danger: #D98278;
+}
+
+/* ================= Part 2 — Scales (phase 02) ================= */
+
+:root {
+  /* Spacing: 4px base. Desktop app — panes resize via container queries (phase 04),
+     so layout gaps use fixed steps, not viewport-fluid vw. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Type: Minor Third (1.2), five sizes ceiling. Fluid within a tight desktop range. */
+  --text-xs:  clamp(0.72rem, 0.71rem + 0.08vw, 0.78rem);   /* ~12–12.5px muted meta */
+  --text-sm:  clamp(0.79rem, 0.78rem + 0.10vw, 0.84rem);   /* ~13px UI chrome */
+  --text-base: clamp(0.90rem, 0.89rem + 0.13vw, 0.97rem);  /* ~15px UI body */
+  --text-lg:  clamp(1.09rem, 1.06rem + 0.20vw, 1.19rem);   /* ~18px section titles */
+  --text-xl:  clamp(1.32rem, 1.27rem + 0.32vw, 1.45rem);   /* ~22px app mark title */
+
+  /* Fonts — decisions, not defaults (typography-master):
+     UI = OS-native stack (a desktop tool should feel of the machine);
+     editor = JetBrains Mono (the writing instrument);
+     prose = Newsreader (editorial archetype, preview surface, phase 05). Self-hosted, no CDN. */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-editor: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --font-prose: "Newsreader", Georgia, "Times New Roman", serif;
+
+  /* Tracking laws: display tightens, small labels relax slightly */
+  --tracking-display: -0.02em;
+  --tracking-ui: 0;
+  --tracking-label: 0.01em;
+
+  /* Radii — decided once: 4px on controls, 0 on panes. The icon squircle stays only on the app mark. */
+  --radius-control: 4px;
+  --radius-pane: 0px;
+
+  /* Motion: 120–160ms, ease-out, transform/opacity only */
+  --transition-fast: 120ms ease-out;
+  --transition-base: 140ms ease-out;
+  --transition-slow: 160ms ease-out;
+
+  /* Elevation: shadows exist ONLY on floating things (menu, dialog, overlay). */
+  --shadow-float: 0 4px 16px rgba(20, 24, 18, 0.18);
+}
+
+[data-theme="dark"] {
+  --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* Markdown syntax colours (DESIGN_TOKENS.md §2) — consumed by CodeMirror in phase 04,
+   defined now so nothing later invents one-off hex. */
+:root {
+  --syntax-heading: #466747;
+  --syntax-bold: #292D26;
+  --syntax-italic: #787A68;
+  --syntax-link: #537B91;
+  --syntax-code: #A15F43;
+  --syntax-codeblock: #526C59;
+  --syntax-quote: #858A7D;
+  --syntax-list: #587858;
+  --syntax-hr: #D4D3C8;
+
+  /* Interface-specific (§3) */
+  --tab-active-bg: #FFFFFF;
+  --tab-inactive-bg: #EFEEE7;
+  --tab-indicator: #587858;
+  --unsaved-dot: #B68A48;
+  --toolbar-icon: #73766B;
+  --toolbar-hover: #EAE9E1;
+  --selection: #DCE8D8;
+  --cursor: #587858;
+  --search-highlight: #F1DDAE;
+  --focus-mode-bg: #FAF9F5;
+}
+
+[data-theme="dark"] {
+  --syntax-heading: #A7C6A3;
+  --syntax-bold: #E8E8DE;
+  --syntax-italic: #B8BBA9;
+  --syntax-link: #91B9CD;
+  --syntax-code: #D6A184;
+  --syntax-codeblock: #A5BEA0;
+  --syntax-quote: #92998C;
+  --syntax-list: #A0BC98;
+  --syntax-hr: #4A5046;
+
+  --tab-active-bg: #292D28;
+  --tab-inactive-bg: #242821;
+  --tab-indicator: #A0BC98;
+  --unsaved-dot: #D2AA70;
+  --toolbar-icon: #92978B;
+  --toolbar-hover: #32372F;
+  --selection: #435441;
+  --cursor: #A0BC98;
+  --search-highlight: #665638;
+  --focus-mode-bg: #252923;
+}
