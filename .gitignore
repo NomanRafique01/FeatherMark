@@ -1,0 +1,14 @@
+# dependencies
+node_modules/
+
+# build output (regenerate with `npm run build:renderer`)
+renderer/dist/
+dist/
+
+# logs & scratch
+*.log
+.taste-skill/
+
+# OS noise
+Thumbs.db
+Desktop.ini

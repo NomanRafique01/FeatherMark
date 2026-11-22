@@ -1,0 +1,26 @@
+# FeatherDown — packaging config (stub; finished in phase 07)
+# assets/icon.png (1024px) is the master; electron-builder converts to .ico automatically.
+appId: com.featherdown.app
+productName: FeatherDown
+directories:
+  output: dist
+  buildResources: assets
+files:
+  - main.js
+  - preload.js
+  - store/**
+  - renderer/index.html
+  - renderer/tokens.css
+  - renderer/style.css
+  - renderer/dist/**
+  - assets/icon.png
+  - package.json
+win:
+  icon: assets/icon.png
+  target:
+    - nsis
+    - portable
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
