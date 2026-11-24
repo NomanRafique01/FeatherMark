@@ -13,8 +13,14 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { initTheme, setThemePref, getThemePref } from './theme.js';
 import { TabBar } from './components/TabBar.jsx';
 import { Editor } from './components/Editor.jsx';
+import { Preview } from './components/Preview.jsx';
+import { Outline } from './components/Outline.jsx';
+import { StatusBar } from './components/StatusBar.jsx';
+import { Toolbar } from './components/Toolbar.jsx';
+import { FindReplace } from './components/FindReplace.jsx';
 
 const THEME_PREFS = ['auto', 'light', 'dark'];
+const VIEW_MODES = ['split', 'preview-only', 'editor-only'];
 const SESSION_TEXT_CAP = 256 * 1024; // per dirty tab, keep session file sane
 
 let nextTabId = 1; // session-restored ids use 'r' prefix, never collide
@@ -26,7 +32,7 @@ function basename(p) {
 
 function makeTab(path, text) {
   return { id: newTabId(), path: path || null, name: path ? basename(path) : 'Untitled',
-    text, dirty: !path, cursor: 0, scroll: 0 };
+    text, dirty: !path, cursor: 0, scroll: 0, previewScroll: 0 };
 }
 
 // ---- Recents (empty state) ----
@@ -59,17 +65,184 @@ function RecentFiles({ recents, onOpen, onForget }) {
 function App() {
   const [tabs, setTabs] = useState([]);
   const [activeId, setActiveId] = useState(null);
+  const [viewMode, setViewMode] = useState('split');
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [toolbarOpen, setToolbarOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1, selectionLength: 0 });
+  const [matchesCount, setMatchesCount] = useState(0);
+  const [matchIndex, setMatchIndex] = useState(0);
+
+  const [splitRatio, setSplitRatio] = useState(0.5);
+  const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
+  const panesContainerRef = useRef(null);
+
   const [recents, setRecents] = useState([]);
   const [notice, setNotice] = useState(null); // recovery/error banner, dismissible
   const [savedBeat, setSavedBeat] = useState(false); // status surface --success for a beat
   const [loading, setLoading] = useState(false);
   const [dropping, setDropping] = useState(false);
   const [pref, setPref] = useState('auto');
-  const editorRef = useRef(null);
+  const editorHandleRef = useRef(null);
+  const previewHandleRef = useRef(null);
+  const viewModeRef = useRef(viewMode);
+  viewModeRef.current = viewMode;
   const stateRef = useRef({ tabs: [], activeId: null });
   stateRef.current = { tabs, activeId };
 
   const active = tabs.find((t) => t.id === activeId) || null;
+
+  function cycleViewMode() {
+    setViewMode((cur) => {
+      const next = VIEW_MODES[(VIEW_MODES.indexOf(cur) + 1) % VIEW_MODES.length];
+      window.feathermark.setSettings('viewMode', next);
+      return next;
+    });
+  }
+
+  function toggleOutline() {
+    setOutlineOpen((cur) => {
+      const next = !cur;
+      window.feathermark.setSettings('outlineOpen', next);
+      return next;
+    });
+  }
+
+  function toggleToolbar() {
+    setToolbarOpen((cur) => {
+      const next = !cur;
+      window.feathermark.setSettings('toolbarOpen', next);
+      return next;
+    });
+  }
+
+  function toggleFocusMode() {
+    setFocusMode((cur) => {
+      const next = !cur;
+      window.feathermark.setSettings('focusMode', next);
+      return next;
+    });
+  }
+
+  function onSelectHeading(item) {
+    if (editorHandleRef.current) {
+      editorHandleRef.current.scrollToLine(item.line, 0);
+      editorHandleRef.current.jumpToPos(item.pos);
+    }
+  }
+
+  function onToolbarAction(action) {
+    if (editorHandleRef.current) {
+      editorHandleRef.current.format(action);
+    }
+  }
+
+  function onSearchChange(query, opts) {
+    if (editorHandleRef.current) {
+      const count = editorHandleRef.current.setSearch(query, opts);
+      setMatchesCount(count);
+      setMatchIndex(0);
+    }
+  }
+
+  function onFindNext() {
+    if (editorHandleRef.current) {
+      editorHandleRef.current.findNext();
+      setMatchIndex((idx) => (matchesCount > 0 ? (idx + 1) % matchesCount : 0));
+    }
+  }
+
+  function onFindPrev() {
+    if (editorHandleRef.current) {
+      editorHandleRef.current.findPrev();
+      setMatchIndex((idx) => (matchesCount > 0 ? (idx - 1 + matchesCount) % matchesCount : 0));
+    }
+  }
+
+  function onReplace(query, replaceText, opts) {
+    if (editorHandleRef.current) {
+      editorHandleRef.current.replace(replaceText, query, opts);
+      const count = editorHandleRef.current.setSearch(query, opts);
+      setMatchesCount(count);
+    }
+  }
+
+  function onReplaceAll(query, replaceText, opts) {
+    if (editorHandleRef.current) {
+      editorHandleRef.current.replaceAll(replaceText, query, opts);
+      const count = editorHandleRef.current.setSearch(query, opts);
+      setMatchesCount(count);
+      setMatchIndex(0);
+    }
+  }
+
+  function handleSplitterMouseDown(e) {
+    e.preventDefault();
+    setIsDraggingSplitter(true);
+    const container = panesContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+
+    const onMouseMove = (moveEvent) => {
+      const offsetX = moveEvent.clientX - rect.left;
+      const rawRatio = offsetX / rect.width;
+      const clamped = Math.max(0.2, Math.min(0.8, rawRatio));
+      setSplitRatio(clamped);
+    };
+
+    const onMouseUp = (upEvent) => {
+      setIsDraggingSplitter(false);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      const offsetX = upEvent.clientX - rect.left;
+      const rawRatio = offsetX / rect.width;
+      const finalRatio = Math.max(0.2, Math.min(0.8, rawRatio));
+      setSplitRatio(finalRatio);
+      window.feathermark.setSettings('splitRatio', finalRatio);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }
+
+  function resetSplitter() {
+    setSplitRatio(0.5);
+    window.feathermark.setSettings('splitRatio', 0.5);
+  }
+
+  function handleSplitterKeyDown(e) {
+    let delta = 0;
+    const step = e.shiftKey ? 0.05 : 0.02;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === '-') {
+      delta = -step;
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === '+' || e.key === '=') {
+      delta = step;
+    } else if (e.key === 'Home') {
+      delta = -1;
+    } else if (e.key === 'End') {
+      delta = 1;
+    } else if (e.key === 'Enter') {
+      resetSplitter();
+      return;
+    }
+    if (delta !== 0) {
+      e.preventDefault();
+      setSplitRatio((cur) => {
+        const next = Math.max(0.2, Math.min(0.8, cur + delta));
+        window.feathermark.setSettings('splitRatio', next);
+        return next;
+      });
+    }
+  }
+
+  function onCloseFind() {
+    setFindOpen(false);
+    if (editorHandleRef.current) {
+      editorHandleRef.current.clearSearch();
+      editorHandleRef.current.focus();
+    }
+  }
 
   // ---- core actions ----
 
@@ -107,7 +280,7 @@ function App() {
   }
 
   function focusEditor() {
-    requestAnimationFrame(() => editorRef.current && editorRef.current.focus());
+    requestAnimationFrame(() => editorHandleRef.current && editorHandleRef.current.focus());
   }
 
   function markDirty(tabId, dirty) {
@@ -216,6 +389,24 @@ function App() {
     setTabs((ts) => ts.map((t) => (t.id === tabId ? { ...t, scroll } : t)));
   }
 
+  function onPreviewScrollChange(previewScroll) {
+    const tabId = stateRef.current.activeId;
+    if (!tabId) return;
+    setTabs((ts) => ts.map((t) => (t.id === tabId ? { ...t, previewScroll } : t)));
+  }
+
+  function onEditorScroll({ line, ratio }) {
+    if (previewHandleRef.current && (viewModeRef.current === 'split' || viewModeRef.current === 'preview-only')) {
+      previewHandleRef.current.scrollToLine(line, ratio);
+    }
+  }
+
+  function onPreviewScroll({ line, ratio }) {
+    if (editorHandleRef.current && (viewModeRef.current === 'split' || viewModeRef.current === 'editor-only')) {
+      editorHandleRef.current.scrollToLine(line, ratio);
+    }
+  }
+
   // ---- session snapshot / restore ----
 
   function buildSnapshot() {
@@ -223,7 +414,7 @@ function App() {
     return {
       active: ts.findIndex((t) => t.id === a),
       tabs: ts.map((t) => ({
-        id: t.id, path: t.path, dirty: t.dirty, cursor: t.cursor, scroll: t.scroll,
+        id: t.id, path: t.path, dirty: t.dirty, cursor: t.cursor, scroll: t.scroll, previewScroll: t.previewScroll || 0,
         text: t.dirty && t.text.length <= SESSION_TEXT_CAP ? t.text : undefined,
       })),
     };
@@ -246,7 +437,7 @@ function App() {
       }
       restored.push({ id: t.id, path: t.path || null,
         name: t.path ? basename(t.path) : 'Untitled',
-        text: text || '', dirty: !!t.dirty, cursor: t.cursor || 0, scroll: t.scroll || 0 });
+        text: text || '', dirty: !!t.dirty, cursor: t.cursor || 0, scroll: t.scroll || 0, previewScroll: t.previewScroll || 0 });
     }
     for (const tab of restored) {
       await window.feathermark.tabOpened(tab.id, tab.path);
@@ -256,10 +447,12 @@ function App() {
     const idx = Math.max(0, Math.min(session.active ?? 0, restored.length - 1));
     focusTab(restored[idx].id);
     requestAnimationFrame(() => {
-      const el = editorRef.current;
-      if (!el) return;
-      el.scrollTop = restored[idx].scroll;
-      el.setSelectionRange(restored[idx].cursor, restored[idx].cursor);
+      if (editorHandleRef.current && restored[idx].scroll) {
+        editorHandleRef.current.setScrollTop(restored[idx].scroll);
+      }
+      if (previewHandleRef.current && restored[idx].previewScroll) {
+        previewHandleRef.current.setScrollTop(restored[idx].previewScroll);
+      }
     });
   }
 
@@ -312,7 +505,22 @@ function App() {
       else if (action === 'save-file') saveActive();
       else if (action === 'save-file-as') saveAsActive();
       else if (action === 'close-tab') closeTab(stateRef.current.activeId);
+      else if (action === 'toggle-preview') cycleViewMode();
+      else if (action === 'toggle-outline') toggleOutline();
+      else if (action === 'toggle-toolbar') toggleToolbar();
+      else if (action === 'toggle-focus') toggleFocusMode();
+      else if (action === 'find-replace') setFindOpen(true);
     }));
+
+    window.feathermark.getSettings('viewMode', 'split').then((v) => {
+      if (VIEW_MODES.includes(v)) setViewMode(v);
+    });
+    window.feathermark.getSettings('outlineOpen', false).then((v) => setOutlineOpen(!!v));
+    window.feathermark.getSettings('toolbarOpen', false).then((v) => setToolbarOpen(!!v));
+    window.feathermark.getSettings('focusMode', false).then((v) => setFocusMode(!!v));
+    window.feathermark.getSettings('splitRatio', 0.5).then((r) => {
+      if (typeof r === 'number' && r >= 0.2 && r <= 0.8) setSplitRatio(r);
+    });
 
     off.push(window.feathermark.onDropOpen((p) => openPath(p)));
     off.push(window.feathermark.onSnapshotRequest(() => takeSnapshot()));
@@ -351,12 +559,41 @@ function App() {
     return () => clearTimeout(timer);
   }, [tabs, activeId]);
 
+  // Restore scroll positions across viewMode changes
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      const cur = stateRef.current.tabs.find((t) => t.id === stateRef.current.activeId);
+      if (!cur) return;
+      if (viewMode !== 'preview-only' && editorHandleRef.current && cur.scroll) {
+        editorHandleRef.current.setScrollTop(cur.scroll);
+      }
+      if (viewMode !== 'editor-only' && previewHandleRef.current && cur.previewScroll) {
+        previewHandleRef.current.setScrollTop(cur.previewScroll);
+      }
+    });
+  }, [viewMode, activeId]);
+
   // Window-level keyboard shortcuts
   useEffect(() => {
     const onKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+      if (e.key === 'F11') {
+        e.preventDefault();
+        toggleFocusMode();
+      } else if (e.altKey && e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        toggleToolbar();
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        toggleOutline();
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        toggleFocusMode();
+      } else if ((e.ctrlKey || e.metaKey) && !e.altKey) {
         const key = e.key.toLowerCase();
-        if (key === 's' && !e.shiftKey) {
+        if (key === 'f' || key === 'h') {
+          e.preventDefault();
+          setFindOpen(true);
+        } else if (key === 's' && !e.shiftKey) {
           e.preventDefault();
           saveActive();
         } else if (key === 's' && e.shiftKey) {
@@ -371,15 +608,21 @@ function App() {
         } else if (key === 'w' && !e.shiftKey) {
           e.preventDefault();
           if (stateRef.current.activeId) closeTab(stateRef.current.activeId);
+        } else if (key === 'e' && !e.shiftKey) {
+          e.preventDefault();
+          cycleViewMode();
         } else if (key === 'tab') {
           e.preventDefault();
           cycleTab(!e.shiftKey);
         }
+      } else if (e.key === 'Escape' && findOpen) {
+        e.preventDefault();
+        onCloseFind();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [findOpen]);
 
   // ---- drag over window (visual affordance; content arrives via main or webUtils) ----
 
@@ -427,9 +670,25 @@ function App() {
 
   // ---- render ----
 
-  return h('div', { class: 'shell' + (dropping ? ' is-dropping' : '') },
+  return h('div', { class: 'shell' + (dropping ? ' is-dropping' : '') + (focusMode ? ' is-focus' : '') },
     h('div', { class: 'workspace' },
       h(TabBar, { tabs, activeId, onSelect: focusTab, onClose: closeTab, onNew: newFile, onReorder: reorderTabs }),
+      tabs.length > 0 && h(Toolbar, {
+        isOpen: toolbarOpen,
+        onAction: onToolbarAction,
+        onClose: () => toggleToolbar(),
+      }),
+      tabs.length > 0 && h(FindReplace, {
+        isOpen: findOpen,
+        matchesCount,
+        currentIndex: matchIndex,
+        onSearchChange,
+        onFindNext,
+        onFindPrev,
+        onReplace,
+        onReplaceAll,
+        onClose: onCloseFind,
+      }),
       notice && h('div', { class: 'notice notice-' + notice.tone, role: 'alert' },
         h('span', {}, notice.text),
         h('button', { class: 'notice-close', 'aria-label': 'Dismiss', onClick: () => setNotice(null) }, '×'),
@@ -439,41 +698,78 @@ function App() {
         h('p', { class: 'empty-hint' }, 'Open a file to start writing, or press Ctrl+O.'),
         h('button', { class: 'empty-action', onClick: () => window.feathermark.openFileDialog().then((p) => p && openPath(p)) }, 'Open a file'),
         h(RecentFiles, { recents, onOpen: onRecentClick, onForget: forgetRecent }),
-      ) : h('main', { class: 'editor-surface' },
-        active && h(Editor, {
-          key: active.id,
-          tabId: active.id,
-          initialText: active.text,
-          initialCursor: active.cursor,
-          initialScroll: active.scroll,
-          onChange: onEditorChange,
-          onCursorChange: onCursorChange,
-          onScrollChange: onScrollChange,
+      ) : h('div', { class: 'workspace-content' },
+        h(Outline, {
+          text: active ? active.text : '',
+          activeLine: cursorPos.line - 1,
+          isOpen: outlineOpen,
+          onSelectHeading,
+          onClose: () => toggleOutline(),
         }),
+        h('main', { ref: panesContainerRef, class: 'workspace-panes is-' + viewMode },
+          active && h('div', {
+            class: 'editor-surface',
+            style: viewMode === 'split' ? { flex: `0 0 ${splitRatio * 100}%`, maxWidth: `${splitRatio * 100}%` } : undefined,
+          },
+            h(Editor, {
+              key: active.id,
+              tabId: active.id,
+              initialText: active.text,
+              initialCursor: active.cursor,
+              initialScroll: active.scroll,
+              onChange: onEditorChange,
+              onCursorChange: onCursorChange,
+              onCursorInfoChange: setCursorPos,
+              onScrollChange: onScrollChange,
+              onEditorScroll: onEditorScroll,
+              editorHandleRef: editorHandleRef,
+            })
+          ),
+          active && viewMode === 'split' && h('div', {
+            class: 'splitter' + (isDraggingSplitter ? ' is-dragging' : ''),
+            role: 'separator',
+            tabIndex: 0,
+            'aria-label': 'Resize editor and preview panes',
+            'aria-valuenow': Math.round(splitRatio * 100),
+            'aria-valuemin': 20,
+            'aria-valuemax': 80,
+            onMouseDown: handleSplitterMouseDown,
+            onDoubleClick: resetSplitter,
+            onKeyDown: handleSplitterKeyDown,
+          }),
+          active && h('div', {
+            class: 'preview-surface',
+            style: viewMode === 'split' ? { flex: '1 1 0px', minWidth: 0 } : undefined,
+          },
+            h(Preview, {
+              key: 'prev-' + active.id,
+              text: active.text,
+              initialScroll: active.previewScroll || 0,
+              onScrollChange: onPreviewScrollChange,
+              onPreviewScroll: onPreviewScroll,
+              previewHandleRef: previewHandleRef,
+            })
+          ),
+        ),
       ),
     ),
     dropping && h('div', { class: 'drop-overlay' },
       h('div', { class: 'drop-frame' }, 'Drop a Markdown or text file to open it'),
     ),
-    h('footer', { class: 'statusbar' + (savedBeat ? ' is-saved' : '') },
-      h('span', { class: 'status-file' }, active
-        ? active.name + (active.dirty ? ' ·' : '') + ' — ' + (active.path || 'not saved yet')
-        : 'No file open'),
-      h('div', { class: 'statusbar-right' },
-        h('span', { class: 'status-count' }, wordCount + ' words'),
-        h('button', {
-          class: 'status-saved', 'aria-live': 'polite',
-          disabled: !savedBeat,
-        }, savedBeat ? 'Saved' : ' '),
-        h('div', { class: 'statusbar-theme', role: 'group', 'aria-label': 'Theme' },
-          THEME_PREFS.map((p) => h('button', {
-            key: p,
-            'aria-pressed': pref === p,
-            onClick: () => setThemePref(p).then(setPref),
-          }, p === 'auto' ? 'System' : p[0].toUpperCase() + p.slice(1))),
-        ),
-      ),
-    ),
+    h(StatusBar, {
+      active,
+      cursorPos,
+      viewMode,
+      onViewModeChange: (m) => {
+        setViewMode(m);
+        window.feathermark.setSettings('viewMode', m);
+      },
+      themePref: pref,
+      onThemeChange: (p) => setThemePref(p).then(setPref),
+      focusMode,
+      onToggleFocusMode: toggleFocusMode,
+      savedBeat,
+    })
   );
 }
 

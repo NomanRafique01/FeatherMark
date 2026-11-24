@@ -431,14 +431,16 @@ function buildMenu() {
         { role: 'undo' }, { role: 'redo' }, { type: 'separator' },
         { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
         { type: 'separator' },
-        { label: 'Find and replace', accelerator: 'CmdOrCtrl+H', enabled: false, click: () => sendToRenderer('feathermark:menu', 'find-replace') },
+        { label: 'Find and replace', accelerator: 'CmdOrCtrl+H', enabled: true, click: () => sendToRenderer('feathermark:menu', 'find-replace') },
       ],
     },
     {
       label: 'View',
       submenu: [
-        { label: 'Toggle preview', accelerator: 'CmdOrCtrl+E', enabled: false, click: () => sendToRenderer('feathermark:menu', 'toggle-preview') },
-        { label: 'Toggle outline', accelerator: 'CmdOrCtrl+Shift+O', enabled: false, click: () => sendToRenderer('feathermark:menu', 'toggle-outline') },
+        { label: 'Toggle preview', accelerator: 'CmdOrCtrl+E', enabled: true, click: () => sendToRenderer('feathermark:menu', 'toggle-preview') },
+        { label: 'Toggle outline', accelerator: 'CmdOrCtrl+Shift+O', enabled: true, click: () => sendToRenderer('feathermark:menu', 'toggle-outline') },
+        { label: 'Toggle toolbar', accelerator: 'Alt+T', click: () => sendToRenderer('feathermark:menu', 'toggle-toolbar') },
+        { label: 'Toggle focus mode', accelerator: 'F11', click: () => sendToRenderer('feathermark:menu', 'toggle-focus') },
         { type: 'separator' },
         { label: 'Theme', submenu: [
           themeRadioItem('Follow system', 'auto'),

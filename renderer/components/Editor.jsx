@@ -11,6 +11,7 @@ import { defaultKeymap, history, historyKeymap, indentMore, indentLess } from '@
 import { markdown } from '@codemirror/lang-markdown';
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
+import { search, setSearchQuery, SearchQuery, findNext, findPrevious, replaceNext, replaceAll } from '@codemirror/search';
 
 // Subtle markdown syntax styling per DESIGN_TOKENS.md §2 (no rainbow, no VS Code-isms)
 const featherMarkHighlightStyle = HighlightStyle.define([
@@ -137,6 +138,47 @@ function wrapLink(view) {
   return true;
 }
 
+function wrapImage(view) {
+  const changes = view.state.changeByRange((range) => {
+    const text = view.state.sliceDoc(range.from, range.to);
+    const insert = `![${text || 'alt text'}](url)`;
+    const selStart = range.from + (text ? text.length + 4 : 2);
+    const selEnd = range.from + (text ? text.length + 7 : 10);
+    return {
+      changes: [{ from: range.from, to: range.to, insert }],
+      range: EditorSelection.range(selStart, selEnd),
+    };
+  });
+  view.dispatch(changes, { scrollIntoView: true, userEvent: 'input.image' });
+  return true;
+}
+
+function toggleLinePrefix(view, prefix) {
+  const line = view.state.doc.lineAt(view.state.selection.main.head);
+  if (line.text.startsWith(prefix)) {
+    view.dispatch({
+      changes: { from: line.from, to: line.from + prefix.length, insert: '' },
+      selection: EditorSelection.cursor(Math.max(line.from, view.state.selection.main.head - prefix.length)),
+      userEvent: 'input.format',
+    });
+  } else {
+    view.dispatch({
+      changes: { from: line.from, to: line.from, insert: prefix },
+      selection: EditorSelection.cursor(view.state.selection.main.head + prefix.length),
+      userEvent: 'input.format',
+    });
+  }
+}
+
+function insertBlock(view, blockText) {
+  const { from, to } = view.state.selection.main;
+  view.dispatch({
+    changes: { from, to, insert: blockText },
+    selection: EditorSelection.cursor(from + blockText.length),
+    userEvent: 'input.format',
+  });
+}
+
 // Auto-pair input handler: wraps selection or inserts pair
 const autoPairHandler = EditorView.inputHandler.of((view, from, to, text) => {
   // If cursor is right before the typed closing character, skip over it
@@ -183,13 +225,133 @@ export function Editor({
   initialScroll = 0,
   onChange,
   onCursorChange,
+  onCursorInfoChange,
   onScrollChange,
+  onEditorScroll,
+  editorHandleRef,
 }) {
   const containerRef = useRef(null);
   const viewRef = useRef(null);
   const currentTabIdRef = useRef(tabId);
-  const callbacksRef = useRef({ onChange, onCursorChange, onScrollChange });
-  callbacksRef.current = { onChange, onCursorChange, onScrollChange };
+  const isExternalScrollRef = useRef(false);
+  const externalScrollTimerRef = useRef(null);
+  const callbacksRef = useRef({ onChange, onCursorChange, onCursorInfoChange, onScrollChange, onEditorScroll });
+  callbacksRef.current = { onChange, onCursorChange, onCursorInfoChange, onScrollChange, onEditorScroll };
+
+  // Expose imperatively callable methods to parent
+  useEffect(() => {
+    if (editorHandleRef) {
+      editorHandleRef.current = {
+        focus() {
+          if (viewRef.current) viewRef.current.focus();
+        },
+        getScrollTop() {
+          return viewRef.current && viewRef.current.scrollDOM ? viewRef.current.scrollDOM.scrollTop : 0;
+        },
+        setScrollTop(top) {
+          if (viewRef.current && viewRef.current.scrollDOM) {
+            viewRef.current.scrollDOM.scrollTop = top;
+          }
+        },
+        scrollToLine(line, ratio = 0) {
+          const view = viewRef.current;
+          if (!view || !view.scrollDOM) return;
+          isExternalScrollRef.current = true;
+          clearTimeout(externalScrollTimerRef.current);
+          externalScrollTimerRef.current = setTimeout(() => {
+            isExternalScrollRef.current = false;
+          }, 120);
+
+          const docLines = view.state.doc.lines;
+          const targetLineNumber = Math.max(1, Math.min(docLines, line + 1));
+          const lineInfo = view.state.doc.line(targetLineNumber);
+          const block = view.lineBlockAt(lineInfo.from);
+          const targetScrollTop = block.top + (block.height * Math.max(0, Math.min(1, ratio)));
+          view.scrollDOM.scrollTop = targetScrollTop;
+        },
+        jumpToPos(pos) {
+          const view = viewRef.current;
+          if (!view) return;
+          const safePos = Math.max(0, Math.min(view.state.doc.length, pos));
+          view.dispatch({
+            selection: EditorSelection.cursor(safePos),
+            scrollIntoView: true,
+          });
+          view.focus();
+        },
+        format(action) {
+          const view = viewRef.current;
+          if (!view) return;
+          if (action === 'bold') wrapSelection(view, '**');
+          else if (action === 'italic') wrapSelection(view, '*');
+          else if (action === 'strike') wrapSelection(view, '~~');
+          else if (action === 'code') wrapSelection(view, '`');
+          else if (action === 'link') wrapLink(view);
+          else if (action === 'image') wrapImage(view);
+          else if (action === 'h1') toggleLinePrefix(view, '# ');
+          else if (action === 'h2') toggleLinePrefix(view, '## ');
+          else if (action === 'h3') toggleLinePrefix(view, '### ');
+          else if (action === 'quote') toggleLinePrefix(view, '> ');
+          else if (action === 'bullet') toggleLinePrefix(view, '- ');
+          else if (action === 'task') toggleLinePrefix(view, '- [ ] ');
+          else if (action === 'hr') insertBlock(view, '\n---\n');
+          else if (action === 'fence') wrapSelection(view, '```\n', '\n```');
+          else if (action === 'table') insertBlock(view, '\n| Column 1 | Column 2 |\n| :--- | :--- |\n| Cell 1 | Cell 2 |\n');
+          view.focus();
+        },
+        setSearch(query, opts = {}) {
+          const view = viewRef.current;
+          if (!view) return 0;
+          const { caseSensitive = false, wholeWord = false, replace = '' } = opts;
+          const q = new SearchQuery({ search: query, replace, caseSensitive, wholeWord });
+          view.dispatch({ effects: setSearchQuery.of(q) });
+          if (!query) return 0;
+          // Count total matches
+          let count = 0;
+          let cursor = q.getCursor(view.state.doc);
+          while (!cursor.next().done) {
+            count++;
+            if (count > 1000) break;
+          }
+          return count;
+        },
+        findNext() {
+          const view = viewRef.current;
+          if (view) findNext(view);
+        },
+        findPrev() {
+          const view = viewRef.current;
+          if (view) findPrevious(view);
+        },
+        replace(replacement, query, opts = {}) {
+          const view = viewRef.current;
+          if (!view) return;
+          if (query !== undefined) {
+            const { caseSensitive = false, wholeWord = false } = opts;
+            const q = new SearchQuery({ search: query, replace: replacement, caseSensitive, wholeWord });
+            view.dispatch({ effects: setSearchQuery.of(q) });
+          }
+          replaceNext(view);
+        },
+        replaceAll(replacement, query, opts = {}) {
+          const view = viewRef.current;
+          if (!view) return;
+          if (query !== undefined) {
+            const { caseSensitive = false, wholeWord = false } = opts;
+            const q = new SearchQuery({ search: query, replace: replacement, caseSensitive, wholeWord });
+            view.dispatch({ effects: setSearchQuery.of(q) });
+          }
+          replaceAll(view);
+        },
+        clearSearch() {
+          const view = viewRef.current;
+          if (view) {
+            view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '' })) });
+          }
+        },
+      };
+    }
+  }, [editorHandleRef]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -223,16 +385,41 @@ export function Editor({
         const doc = update.state.doc.toString();
         callbacksRef.current.onChange(doc);
       }
-      if (update.selectionSet && callbacksRef.current.onCursorChange) {
-        const cursor = update.state.selection.main.head;
-        callbacksRef.current.onCursorChange(cursor);
+      if (update.selectionSet) {
+        const head = update.state.selection.main.head;
+        if (callbacksRef.current.onCursorChange) {
+          callbacksRef.current.onCursorChange(head);
+        }
+        if (callbacksRef.current.onCursorInfoChange) {
+          const lineInfo = update.state.doc.lineAt(head);
+          const line = lineInfo.number;
+          const col = head - lineInfo.from + 1;
+          const selectionLength = Math.abs(update.state.selection.main.to - update.state.selection.main.from);
+          callbacksRef.current.onCursorInfoChange({ line, col, selectionLength });
+        }
       }
     });
 
     const scrollListener = EditorView.domEventHandlers({
       scroll(event, view) {
+        const scrollTop = view.scrollDOM.scrollTop;
         if (callbacksRef.current.onScrollChange) {
-          callbacksRef.current.onScrollChange(view.scrollDOM.scrollTop);
+          callbacksRef.current.onScrollChange(scrollTop);
+        }
+        if (isExternalScrollRef.current) return false;
+        if (callbacksRef.current.onEditorScroll) {
+          const maxScroll = view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight;
+          if (maxScroll <= 0 || scrollTop <= 0) {
+            callbacksRef.current.onEditorScroll({ line: 0, ratio: 0, scrollTop: 0 });
+          } else if (scrollTop >= maxScroll - 2) {
+            const lastLine = view.state.doc.lines - 1;
+            callbacksRef.current.onEditorScroll({ line: lastLine, ratio: 1, scrollTop });
+          } else {
+            const block = view.lineBlockAtHeight(scrollTop);
+            const line = view.state.doc.lineAt(block.from).number - 1;
+            const ratio = block.height > 0 ? (scrollTop - block.top) / block.height : 0;
+            callbacksRef.current.onEditorScroll({ line, ratio, scrollTop });
+          }
         }
         return false;
       },
@@ -247,6 +434,7 @@ export function Editor({
         EditorView.lineWrapping,
         featherMarkTheme,
         autoPairHandler,
+        search({ top: false }),
         keymap.of(editorKeymap),
         updateListener,
         scrollListener,
