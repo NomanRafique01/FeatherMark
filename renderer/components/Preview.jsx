@@ -116,6 +116,33 @@ export function Preview({
   const isExternalScrollRef = useRef(false);
   const externalScrollTimerRef = useRef(null);
   const syncScrollerRef = useRef(makeSyncScroller());
+  const lineBlocksRef = useRef([]);
+  const previewScrollRafRef = useRef(null);
+  const callbacksRef = useRef({ onScrollChange, onPreviewScroll });
+  callbacksRef.current = { onScrollChange, onPreviewScroll };
+
+  // Helper to re-index all [data-line] offsets in prose
+  function refreshLineBlocks() {
+    const prose = proseRef.current;
+    if (!prose) {
+      lineBlocksRef.current = [];
+      return;
+    }
+    const els = prose.querySelectorAll('[data-line]');
+    const blocks = [];
+    for (let i = 0; i < els.length; i++) {
+      const el = els[i];
+      const line = parseInt(el.getAttribute('data-line'), 10);
+      if (!isNaN(line)) {
+        blocks.push({
+          line,
+          offsetTop: el.offsetTop,
+          offsetHeight: el.offsetHeight,
+        });
+      }
+    }
+    lineBlocksRef.current = blocks;
+  }
 
   // Expose control handles to parent
   useEffect(() => {
@@ -130,18 +157,17 @@ export function Preview({
       },
 
       // Called from editor scroll events (continuous, 60fps+).
-      // Uses RAF-throttle + instant scroll — zero lag, no competing animations.
+      // Uses RAF-throttle + cached line offsets — zero lag, zero layout thrashing.
       scrollToLine(line, ratio = 0) {
         const container = containerRef.current;
-        const prose = proseRef.current;
-        if (!container || !prose) return;
+        if (!container) return;
 
         // Mark as external so the preview's own scroll listener doesn't echo back
         isExternalScrollRef.current = true;
         clearTimeout(externalScrollTimerRef.current);
         externalScrollTimerRef.current = setTimeout(() => {
           isExternalScrollRef.current = false;
-        }, 80); // short: just enough to skip the scroll echo, no lag
+        }, 120);
 
         const maxScroll = container.scrollHeight - container.clientHeight;
         if (maxScroll <= 0 || line <= 0) {
@@ -149,7 +175,7 @@ export function Preview({
           return;
         }
 
-        const blocks = prose.querySelectorAll('[data-line]');
+        const blocks = lineBlocksRef.current;
         if (blocks.length === 0) {
           syncScrollerRef.current.scrollTo(container, 0);
           return;
@@ -158,20 +184,20 @@ export function Preview({
         let prevBlock = null;
         let nextBlock = null;
         for (let i = 0; i < blocks.length; i++) {
-          const bLine = parseInt(blocks[i].getAttribute('data-line'), 10);
-          if (bLine <= line) prevBlock = blocks[i];
-          else { nextBlock = blocks[i]; break; }
+          const b = blocks[i];
+          if (b.line <= line) prevBlock = b;
+          else { nextBlock = b; break; }
         }
 
         let target = 0;
         if (!prevBlock && nextBlock) {
-          const nLine = parseInt(nextBlock.getAttribute('data-line'), 10);
+          const nLine = nextBlock.line;
           target = nLine > 0 ? (nextBlock.offsetTop * line) / nLine : 0;
         } else if (prevBlock && !nextBlock) {
           target = prevBlock.offsetTop;
         } else if (prevBlock && nextBlock) {
-          const pLine = parseInt(prevBlock.getAttribute('data-line'), 10);
-          const nLine = parseInt(nextBlock.getAttribute('data-line'), 10);
+          const pLine = prevBlock.line;
+          const nLine = nextBlock.line;
           const span = Math.max(1, nLine - pLine);
           const progress = (line - pLine + Math.max(0, Math.min(1, ratio))) / span;
           target = prevBlock.offsetTop + (nextBlock.offsetTop - prevBlock.offsetTop) * progress;
@@ -181,15 +207,6 @@ export function Preview({
       },
     };
   }, [previewHandleRef]);
-
-  // Restore initial scroll position (instant — no animation on load)
-  useEffect(() => {
-    if (initialScroll > 0 && containerRef.current) {
-      requestAnimationFrame(() => {
-        if (containerRef.current) scrollInstant(containerRef.current, initialScroll);
-      });
-    }
-  }, [initialScroll]);
 
   // Debounced render (≥150ms idle) + in-place DOM morph (preserves scroll)
   useEffect(() => {
@@ -212,6 +229,7 @@ export function Preview({
 
       // morphChildren — NEVER morphs article's own class="preview-prose" attribute
       morphChildren(prose, parsed.body);
+      refreshLineBlocks();
 
       // Restore scroll instantly (no animation — this is not a user action)
       if (container && !isExternalScrollRef.current) {
@@ -229,12 +247,28 @@ export function Preview({
     const prose = proseRef.current;
     if (prose) {
       prose.innerHTML = rawHtml || '<p class="preview-empty">Start typing to see the rendered preview.</p>';
+      refreshLineBlocks();
       if (initialScroll > 0 && containerRef.current) {
         scrollInstant(containerRef.current, initialScroll);
       }
     }
+
+    // ResizeObserver on prose to keep cached block line offsets exact if fonts load or window resizes
+    let ro = null;
+    if (typeof ResizeObserver !== 'undefined' && proseRef.current) {
+      ro = new ResizeObserver(() => {
+        refreshLineBlocks();
+      });
+      ro.observe(proseRef.current);
+    }
+
     // Cancel any pending RAF sync on unmount
-    return () => syncScrollerRef.current.cancel();
+    return () => {
+      if (ro) ro.disconnect();
+      if (previewScrollRafRef.current !== null) cancelAnimationFrame(previewScrollRafRef.current);
+      clearTimeout(externalScrollTimerRef.current);
+      syncScrollerRef.current.cancel();
+    };
   }, []);
 
   // Scroll listener: save position + fire preview→editor reverse sync
@@ -243,36 +277,55 @@ export function Preview({
     if (!container) return;
 
     const scrollTop = container.scrollTop;
-    if (onScrollChange) onScrollChange(scrollTop);
+    if (callbacksRef.current.onScrollChange && !isExternalScrollRef.current) {
+      callbacksRef.current.onScrollChange(scrollTop);
+    }
 
     if (isExternalScrollRef.current) return; // skip echo from our own sync
 
-    if (onPreviewScroll && proseRef.current) {
-      const maxScroll = container.scrollHeight - container.clientHeight;
-      if (maxScroll <= 0 || scrollTop <= 0) {
-        onPreviewScroll({ line: 0, ratio: 0 });
+    if (previewScrollRafRef.current !== null) return;
+    previewScrollRafRef.current = requestAnimationFrame(() => {
+      previewScrollRafRef.current = null;
+      if (!containerRef.current || !proseRef.current || isExternalScrollRef.current) return;
+
+      const st = containerRef.current.scrollTop;
+      const maxScroll = containerRef.current.scrollHeight - containerRef.current.clientHeight;
+      if (maxScroll <= 0 || st <= 0) {
+        if (callbacksRef.current.onPreviewScroll) {
+          callbacksRef.current.onPreviewScroll({ line: 0, ratio: 0 });
+        }
         return;
       }
 
-      const blocks = proseRef.current.querySelectorAll('[data-line]');
+      const blocks = lineBlocksRef.current;
+      if (blocks.length === 0) return;
+
+      if (st >= maxScroll - 2) {
+        const lastLine = blocks[blocks.length - 1].line;
+        if (callbacksRef.current.onPreviewScroll) {
+          callbacksRef.current.onPreviewScroll({ line: lastLine, ratio: 1 });
+        }
+        return;
+      }
+
       let visibleBlock = null;
       let nextBlock = null;
       for (let i = 0; i < blocks.length; i++) {
         const b = blocks[i];
-        if (b.offsetTop <= scrollTop) visibleBlock = b;
+        if (b.offsetTop <= st) visibleBlock = b;
         else { nextBlock = b; break; }
       }
 
-      if (visibleBlock) {
-        const bLine = parseInt(visibleBlock.getAttribute('data-line'), 10);
-        const nLine = nextBlock ? parseInt(nextBlock.getAttribute('data-line'), 10) : bLine + 1;
+      if (visibleBlock && callbacksRef.current.onPreviewScroll) {
+        const bLine = visibleBlock.line;
+        const nLine = nextBlock ? nextBlock.line : bLine + 1;
         const bTop = visibleBlock.offsetTop;
         const nTop = nextBlock ? nextBlock.offsetTop : bTop + visibleBlock.offsetHeight;
-        const progress = nTop > bTop ? (scrollTop - bTop) / (nTop - bTop) : 0;
+        const progress = nTop > bTop ? (st - bTop) / (nTop - bTop) : 0;
         const line = bLine + progress * (nLine - bLine);
-        onPreviewScroll({ line: Math.floor(line), ratio: line - Math.floor(line) });
+        callbacksRef.current.onPreviewScroll({ line: Math.floor(line), ratio: line - Math.floor(line) });
       }
-    }
+    });
   };
 
   // Anchor clicks: smooth scroll is correct here — single one-shot user action

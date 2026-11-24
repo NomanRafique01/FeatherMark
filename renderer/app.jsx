@@ -86,6 +86,7 @@ function App() {
   const [pref, setPref] = useState('auto');
   const editorHandleRef = useRef(null);
   const previewHandleRef = useRef(null);
+  const activeScrollerRef = useRef('editor');
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
   const stateRef = useRef({ tabs: [], activeId: null });
@@ -126,6 +127,7 @@ function App() {
   }
 
   function onSelectHeading(item) {
+    activeScrollerRef.current = 'editor';
     if (editorHandleRef.current) {
       editorHandleRef.current.scrollToLine(item.line, 0);
       editorHandleRef.current.jumpToPos(item.pos);
@@ -246,7 +248,23 @@ function App() {
 
   // ---- core actions ----
 
+  function saveCurrentTabScroll() {
+    const curId = stateRef.current.activeId;
+    if (!curId) return;
+    const curTab = stateRef.current.tabs.find((t) => t.id === curId);
+    if (!curTab) return;
+    if (editorHandleRef.current) {
+      curTab.scroll = editorHandleRef.current.getScrollTop();
+    }
+    if (previewHandleRef.current) {
+      curTab.previewScroll = previewHandleRef.current.getScrollTop();
+    }
+  }
+
   function focusTab(id) {
+    if (id !== stateRef.current.activeId) {
+      saveCurrentTabScroll();
+    }
     setActiveId(id);
     window.feathermark.tabActivated(id);
   }
@@ -320,6 +338,7 @@ function App() {
   }
 
   async function closeTab(tabId) {
+    saveCurrentTabScroll();
     const tab = stateRef.current.tabs.find((t) => t.id === tabId);
     if (!tab) return;
     if (tab.dirty) {
@@ -386,22 +405,26 @@ function App() {
   function onScrollChange(scroll) {
     const tabId = stateRef.current.activeId;
     if (!tabId) return;
-    setTabs((ts) => ts.map((t) => (t.id === tabId ? { ...t, scroll } : t)));
+    const curTab = stateRef.current.tabs.find((t) => t.id === tabId);
+    if (curTab) curTab.scroll = scroll;
   }
 
   function onPreviewScrollChange(previewScroll) {
     const tabId = stateRef.current.activeId;
     if (!tabId) return;
-    setTabs((ts) => ts.map((t) => (t.id === tabId ? { ...t, previewScroll } : t)));
+    const curTab = stateRef.current.tabs.find((t) => t.id === tabId);
+    if (curTab) curTab.previewScroll = previewScroll;
   }
 
   function onEditorScroll({ line, ratio }) {
+    if (activeScrollerRef.current !== 'editor') return;
     if (previewHandleRef.current && (viewModeRef.current === 'split' || viewModeRef.current === 'preview-only')) {
       previewHandleRef.current.scrollToLine(line, ratio);
     }
   }
 
   function onPreviewScroll({ line, ratio }) {
+    if (activeScrollerRef.current !== 'preview') return;
     if (editorHandleRef.current && (viewModeRef.current === 'split' || viewModeRef.current === 'editor-only')) {
       editorHandleRef.current.scrollToLine(line, ratio);
     }
@@ -410,11 +433,12 @@ function App() {
   // ---- session snapshot / restore ----
 
   function buildSnapshot() {
+    saveCurrentTabScroll();
     const { tabs: ts, activeId: a } = stateRef.current;
     return {
       active: ts.findIndex((t) => t.id === a),
       tabs: ts.map((t) => ({
-        id: t.id, path: t.path, dirty: t.dirty, cursor: t.cursor, scroll: t.scroll, previewScroll: t.previewScroll || 0,
+        id: t.id, path: t.path, dirty: t.dirty, cursor: t.cursor, scroll: t.scroll || 0, previewScroll: t.previewScroll || 0,
         text: t.dirty && t.text.length <= SESSION_TEXT_CAP ? t.text : undefined,
       })),
     };
@@ -709,7 +733,9 @@ function App() {
         h('main', { ref: panesContainerRef, class: 'workspace-panes is-' + viewMode },
           active && h('div', {
             class: 'editor-surface',
-            style: viewMode === 'split' ? { flex: `0 0 ${splitRatio * 100}%`, maxWidth: `${splitRatio * 100}%` } : undefined,
+            onMouseEnter: () => { activeScrollerRef.current = 'editor'; },
+            onWheel: () => { activeScrollerRef.current = 'editor'; },
+            style: viewMode === 'split' ? { flex: `0 0 calc(${splitRatio * 100}% - 2.5px)`, width: `calc(${splitRatio * 100}% - 2.5px)` } : undefined,
           },
             h(Editor, {
               key: active.id,
@@ -739,6 +765,8 @@ function App() {
           }),
           active && h('div', {
             class: 'preview-surface',
+            onMouseEnter: () => { activeScrollerRef.current = 'preview'; },
+            onWheel: () => { activeScrollerRef.current = 'preview'; },
             style: viewMode === 'split' ? { flex: '1 1 0px', minWidth: 0 } : undefined,
           },
             h(Preview, {

@@ -235,6 +235,7 @@ export function Editor({
   const currentTabIdRef = useRef(tabId);
   const isExternalScrollRef = useRef(false);
   const externalScrollTimerRef = useRef(null);
+  const editorSyncRafRef = useRef(null);
   const callbacksRef = useRef({ onChange, onCursorChange, onCursorInfoChange, onScrollChange, onEditorScroll });
   callbacksRef.current = { onChange, onCursorChange, onCursorInfoChange, onScrollChange, onEditorScroll };
 
@@ -267,7 +268,14 @@ export function Editor({
           const lineInfo = view.state.doc.line(targetLineNumber);
           const block = view.lineBlockAt(lineInfo.from);
           const targetScrollTop = block.top + (block.height * Math.max(0, Math.min(1, ratio)));
-          view.scrollDOM.scrollTop = targetScrollTop;
+
+          if (editorSyncRafRef.current !== null) cancelAnimationFrame(editorSyncRafRef.current);
+          editorSyncRafRef.current = requestAnimationFrame(() => {
+            editorSyncRafRef.current = null;
+            if (viewRef.current && viewRef.current.scrollDOM) {
+              viewRef.current.scrollDOM.scrollTop = targetScrollTop;
+            }
+          });
         },
         jumpToPos(pos) {
           const view = viewRef.current;
@@ -400,26 +408,36 @@ export function Editor({
       }
     });
 
+    let editorScrollRaf = null;
+
     const scrollListener = EditorView.domEventHandlers({
       scroll(event, view) {
         const scrollTop = view.scrollDOM.scrollTop;
-        if (callbacksRef.current.onScrollChange) {
+        if (callbacksRef.current.onScrollChange && !isExternalScrollRef.current) {
           callbacksRef.current.onScrollChange(scrollTop);
         }
         if (isExternalScrollRef.current) return false;
+
         if (callbacksRef.current.onEditorScroll) {
-          const maxScroll = view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight;
-          if (maxScroll <= 0 || scrollTop <= 0) {
-            callbacksRef.current.onEditorScroll({ line: 0, ratio: 0, scrollTop: 0 });
-          } else if (scrollTop >= maxScroll - 2) {
-            const lastLine = view.state.doc.lines - 1;
-            callbacksRef.current.onEditorScroll({ line: lastLine, ratio: 1, scrollTop });
-          } else {
-            const block = view.lineBlockAtHeight(scrollTop);
-            const line = view.state.doc.lineAt(block.from).number - 1;
-            const ratio = block.height > 0 ? (scrollTop - block.top) / block.height : 0;
-            callbacksRef.current.onEditorScroll({ line, ratio, scrollTop });
-          }
+          if (editorScrollRaf !== null) return false;
+          editorScrollRaf = requestAnimationFrame(() => {
+            editorScrollRaf = null;
+            if (!viewRef.current || !viewRef.current.scrollDOM || isExternalScrollRef.current) return;
+            const v = viewRef.current;
+            const st = v.scrollDOM.scrollTop;
+            const maxScroll = v.scrollDOM.scrollHeight - v.scrollDOM.clientHeight;
+            if (maxScroll <= 0 || st <= 0) {
+              callbacksRef.current.onEditorScroll({ line: 0, ratio: 0, scrollTop: 0 });
+            } else if (st >= maxScroll - 2) {
+              const lastLine = v.state.doc.lines - 1;
+              callbacksRef.current.onEditorScroll({ line: lastLine, ratio: 1, scrollTop: st });
+            } else {
+              const block = v.lineBlockAtHeight(st);
+              const line = v.state.doc.lineAt(block.from).number - 1;
+              const ratio = block.height > 0 ? (st - block.top) / block.height : 0;
+              callbacksRef.current.onEditorScroll({ line, ratio, scrollTop: st });
+            }
+          });
         }
         return false;
       },
@@ -462,6 +480,9 @@ export function Editor({
     }
 
     return () => {
+      if (editorScrollRaf !== null) cancelAnimationFrame(editorScrollRaf);
+      if (editorSyncRafRef.current !== null) cancelAnimationFrame(editorSyncRafRef.current);
+      clearTimeout(externalScrollTimerRef.current);
       view.destroy();
       viewRef.current = null;
     };

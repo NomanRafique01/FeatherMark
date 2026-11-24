@@ -52,20 +52,26 @@ button {
 
 .shell {
   height: 100%;
-  display: grid;
-  grid-template-rows: 1fr auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--app-bg);
 }
 
 .workspace {
-  display: grid;
-  grid-template-rows: auto auto 1fr; /* tabbar, notices/loading, content */
+  flex: 1 1 0px;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
 }
 
 /* ---- Tab bar (DESIGN_TOKENS.md §3 interface tokens) ---- */
 
 .tabbar {
+  flex: 0 0 auto;
   display: flex;
   align-items: stretch;
   background: var(--sidebar-bg);
@@ -169,6 +175,7 @@ button {
 /* ---- Notices (error/recovery: what went wrong + the fix) ---- */
 
 .notice {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -209,6 +216,7 @@ button {
 /* ---- Loading: fixed-height indeterminate strip, never shifts the layout ---- */
 
 .loading {
+  flex: 0 0 auto;
   height: 2px;
   overflow: hidden;
   background: var(--border);
@@ -377,6 +385,7 @@ button {
 /* ---- Toolbar (Phase 06) ---- */
 
 .editor-toolbar {
+  flex: 0 0 auto;
   height: 32px;
   min-height: 32px;
   background: var(--sidebar-bg);
@@ -566,7 +575,7 @@ button {
   position: relative;
 }
 
-.workspace-panes {
+.shell.is-focus .workspace-panes {
   background: var(--focus-mode-bg);
 }
 
@@ -644,7 +653,7 @@ button {
 
 .workspace-content {
   display: flex;
-  flex: 1;
+  flex: 1 1 0px;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
@@ -653,9 +662,10 @@ button {
 
 .workspace-panes {
   display: flex;
-  flex: 1;
+  flex: 1 1 0px;
   min-height: 0;
   min-width: 0;
+  height: 100%;
   overflow: hidden;
   background: var(--editor-bg);
 }
@@ -685,6 +695,7 @@ button {
 .editor-surface {
   min-height: 0;
   min-width: 0;
+  height: 100%;
   background: var(--editor-bg);
   display: flex;
   flex: 1;
@@ -694,6 +705,7 @@ button {
 .preview-surface {
   min-height: 0;
   min-width: 0;
+  height: 100%;
   background: var(--preview-bg);
   display: flex;
   flex: 1;
@@ -728,6 +740,7 @@ button {
 .cm-scroller {
   overflow: auto;
   font-family: var(--font-editor);
+  overscroll-behavior: contain;
 }
 
 /* Container query responsiveness: fluid clamping at narrow split widths (Dynamic UI Engine) */
@@ -749,6 +762,7 @@ button {
   background: var(--preview-bg);
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
   /* scroll-behavior intentionally NOT set here — smooth is applied only for
      one-shot user actions (anchor clicks) via scrollIntoView({behavior:'smooth'}).
      Continuous editor→preview sync uses instant RAFscroll to avoid lag. */
@@ -1122,10 +1136,13 @@ button {
 /* ---- Status bar ---- */
 
 .statusbar {
+  flex: 0 0 28px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   height: 28px;
+  min-height: 28px;
+  max-height: 28px;
   padding: 0 var(--space-3);
   background: var(--sidebar-bg);
   border-top: 1px solid var(--border);
