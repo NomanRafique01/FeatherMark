@@ -8,6 +8,7 @@ dist/
 # logs & scratch
 *.log
 .taste-skill/
+.qoder/
 
 # OS noise
 Thumbs.db

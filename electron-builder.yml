@@ -1,7 +1,7 @@
-# FeatherDown — packaging config (stub; finished in phase 07)
+# FeatherMark — packaging config (stub; finished in phase 07)
 # assets/icon.png (1024px) is the master; electron-builder converts to .ico automatically.
-appId: com.featherdown.app
-productName: FeatherDown
+appId: com.feathermark.app
+productName: FeatherMark
 directories:
   output: dist
   buildResources: assets

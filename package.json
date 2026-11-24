@@ -1,10 +1,10 @@
 {
-  "name": "featherdown",
-  "productName": "FeatherDown",
+  "name": "feathermark",
+  "productName": "FeatherMark",
   "version": "0.1.0",
   "description": "A quiet, distraction-free markdown editor — warm paper, deep ink, forest green.",
   "main": "main.js",
-  "author": "FeatherDown",
+  "author": "FeatherMark",
   "license": "MIT",
   "private": true,
   "scripts": {
