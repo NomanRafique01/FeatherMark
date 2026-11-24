@@ -1,4 +1,4 @@
-# Featherdown — Design Tokens
+# Feathermark — Design Tokens
 
 **Theme:** Warm Editorial + Forest Green
 **Philosophy:** A quiet, distraction-free writing environment. Warm paper, deep ink, muted forest-green accent — not another developer IDE.

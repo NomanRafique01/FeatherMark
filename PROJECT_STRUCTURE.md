@@ -1,7 +1,7 @@
-# Featherdown — Project Structure
+# Feathermark — Project Structure
 
 ```
-featherdown/
+feathermark/
 ├── main.js                     # Electron main process (window, menu, IPC handlers)
 ├── preload.js                  # contextBridge — secure IPC only, no direct Node access
 ├── package.json
@@ -35,7 +35,7 @@ featherdown/
 ## Notes
 
 - **main.js** owns all file-system access (open/save/export/watch). Renderer never touches `fs` directly.
-- **preload.js** exposes a minimal typed API (`window.featherdown.openFile()`, `.saveFile()`, etc.) via `contextBridge`.
-- **store/settings.js** is a flat JSON file (e.g. `~/.featherdown/settings.json`) — no database.
+- **preload.js** exposes a minimal typed API (`window.feathermark.openFile()`, `.saveFile()`, etc.) via `contextBridge`.
+- **store/settings.js** is a flat JSON file (e.g. `~/.feathermark/settings.json`) — no database.
 - **tokens.css** is imported once in `index.html`, before `style.css`, so every component can use the CSS variables from `DESIGN_TOKENS.md`.
 - Components stay presentational where possible; tab/file state lives in `app.jsx` and is passed down as props (no state library needed at this scale).
