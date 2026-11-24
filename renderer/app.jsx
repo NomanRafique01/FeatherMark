@@ -1,5 +1,6 @@
-// FeatherDown — Preact root. Phase 02: theme via theme.js, self-hosted fonts,
-// temporary token proof panel (removed in phase 04).
+// FeatherMark — Preact root. Phase 03: real workspace shell — tabs model, file
+// semantics (open/save/save-as/dirty/recents/session), drop target, honest states.
+// CodeMirror replaces the plain editor surface in phase 04; everything else here is final.
 
 import '@fontsource/jetbrains-mono/latin-400.css';
 import '@fontsource/jetbrains-mono/latin-700.css';
@@ -8,105 +9,472 @@ import '@fontsource/newsreader/latin-600.css';
 import '@fontsource/newsreader/latin-400-italic.css';
 
 import { h, render } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { initTheme, setThemePref, getThemePref } from './theme.js';
+import { TabBar } from './components/TabBar.jsx';
+import { Editor } from './components/Editor.jsx';
 
 const THEME_PREFS = ['auto', 'light', 'dark'];
+const SESSION_TEXT_CAP = 256 * 1024; // per dirty tab, keep session file sane
 
-const COLOUR_TOKENS = [
-  '--app-bg', '--sidebar-bg', '--editor-bg', '--preview-bg',
-  '--surface-hover', '--surface-active',
-  '--border', '--border-strong',
-  '--text-primary', '--text-secondary', '--text-muted',
-  '--accent', '--accent-hover', '--accent-soft',
-  '--success', '--warning', '--danger',
-  '--syntax-heading', '--syntax-link', '--syntax-code', '--syntax-codeblock',
-  '--selection', '--cursor', '--search-highlight', '--focus-mode-bg',
-];
+let nextTabId = 1; // session-restored ids use 'r' prefix, never collide
+const newTabId = () => 't' + nextTabId++;
 
-function TokenProof() {
-  const [computed, setComputed] = useState({});
+function basename(p) {
+  return p.split(/[\\/]/).pop();
+}
 
-  useEffect(() => {
-    const read = () => {
-      const styles = getComputedStyle(document.documentElement);
-      const map = {};
-      for (const t of COLOUR_TOKENS) map[t] = styles.getPropertyValue(t).trim();
-      setComputed(map);
-    };
-    read();
-    return initTheme(read); // refresh swatches when theme flips
-  }, []);
+function makeTab(path, text) {
+  return { id: newTabId(), path: path || null, name: path ? basename(path) : 'Untitled',
+    text, dirty: !path, cursor: 0, scroll: 0 };
+}
 
-  return h('div', { class: 'token-proof', role: 'dialog', 'aria-label': 'Design token proof' },
-    h('h2', {}, 'Colour tokens — current theme'),
-    h('div', { class: 'token-grid' },
-      COLOUR_TOKENS.map((token) => h('div', { class: 'token-swatch', key: token },
-        h('div', { class: 'chip', style: { background: `var(${token})` } }),
-        h('div', {},
-          h('div', { class: 'name' }, token),
-          h('div', { class: 'value' }, computed[token] || '—'),
+// ---- Recents (empty state) ----
+
+function RecentFiles({ recents, onOpen, onForget }) {
+  if (recents.length === 0) return null;
+  return h('section', { class: 'recents' },
+    h('h2', { class: 'recents-title' }, 'Recent files'),
+    h('ul', { class: 'recents-list' },
+      recents.map((r) => h('li', { key: r.path, class: 'recents-item' + (r.exists ? '' : ' is-missing') },
+        h('button', {
+          class: 'recents-open',
+          onClick: () => onOpen(r),
+        },
+          h('span', { class: 'recents-name' }, basename(r.path)),
+          h('span', { class: 'recents-dir' }, r.path.slice(0, r.path.length - basename(r.path).length - 1)),
+          !r.exists && h('span', { class: 'recents-flag' }, 'missing'),
         ),
+        h('button', {
+          class: 'recents-forget', 'aria-label': 'Remove from recent files',
+          onClick: () => onForget(r.path),
+        }, '×'),
       )),
     ),
   );
 }
 
+// ---- App ----
+
 function App() {
+  const [tabs, setTabs] = useState([]);
+  const [activeId, setActiveId] = useState(null);
+  const [recents, setRecents] = useState([]);
+  const [notice, setNotice] = useState(null); // recovery/error banner, dismissible
+  const [savedBeat, setSavedBeat] = useState(false); // status surface --success for a beat
+  const [loading, setLoading] = useState(false);
+  const [dropping, setDropping] = useState(false);
   const [pref, setPref] = useState('auto');
-  const [lastPath, setLastPath] = useState(null);
-  const [showTokens, setShowTokens] = useState(false);
+  const editorRef = useRef(null);
+  const stateRef = useRef({ tabs: [], activeId: null });
+  stateRef.current = { tabs, activeId };
 
-  useEffect(() => {
-    let mounted = true;
-    const offTheme = initTheme();
-    getThemePref().then((p) => { if (mounted) setPref(p); });
-    const offMenu = window.featherdown.onMenu(handleMenu);
-    return () => { mounted = false; offTheme(); offMenu(); };
-  }, []);
+  const active = tabs.find((t) => t.id === activeId) || null;
 
-  async function handleMenu(action) {
-    if (action === 'open-file') {
-      const path = await window.featherdown.openFileDialog();
-      if (path) setLastPath(path); // file reading lands in phase 03
+  // ---- core actions ----
+
+  function focusTab(id) {
+    setActiveId(id);
+    window.feathermark.tabActivated(id);
+  }
+
+  async function addTab(tab, register = true) {
+    setTabs((ts) => [...ts, tab]);
+    setActiveId(tab.id);
+    if (register) await window.feathermark.tabOpened(tab.id, tab.path);
+    return tab.id;
+  }
+
+  async function openPath(pathToOpen) {
+    const existing = stateRef.current.tabs.find((t) => t.path === pathToOpen);
+    if (existing) { focusTab(existing.id); return; }
+    setLoading(true);
+    setNotice(null);
+    const result = await window.feathermark.open(pathToOpen);
+    setLoading(false);
+    if (!result.ok) {
+      setNotice({ text: result.error, tone: 'danger', path: pathToOpen });
+      refreshRecents();
+      return;
+    }
+    await addTab(makeTab(pathToOpen, result.content));
+    refreshRecents();
+  }
+
+  async function newFile() {
+    await addTab(makeTab(null, ''), true); // untitled starts dirty (deliverable 1: no path yet)
+    focusEditor();
+  }
+
+  function focusEditor() {
+    requestAnimationFrame(() => editorRef.current && editorRef.current.focus());
+  }
+
+  function markDirty(tabId, dirty) {
+    setTabs((ts) => ts.map((t) => (t.id === tabId ? { ...t, dirty } : t)));
+    window.feathermark.tabDirty(tabId, dirty);
+  }
+
+  async function saveActive() {
+    const tab = stateRef.current.tabs.find((t) => t.id === stateRef.current.activeId);
+    if (!tab) return;
+    if (!tab.dirty) return; // Ctrl+S on a clean file is a no-op, not an error
+    if (!tab.path) return saveAsActive();
+    const result = await window.feathermark.save(tab.id, tab.text);
+    handleSaveResult(tab.id, result);
+  }
+
+  async function saveAsActive() {
+    const tab = stateRef.current.tabs.find((t) => t.id === stateRef.current.activeId);
+    if (!tab) return;
+    const result = await window.feathermark.saveAs(tab.id, tab.text);
+    handleSaveResult(tab.id, result);
+  }
+
+  function handleSaveResult(tabId, result) {
+    if (result.ok) {
+      markDirty(tabId, false);
+      setTabs((ts) => ts.map((t) => (t.id === tabId
+        ? { ...t, dirty: false, path: result.path || t.path, name: result.path ? basename(result.path) : t.name }
+        : t)));
+      setSavedBeat(true);
+      setTimeout(() => setSavedBeat(false), 1200);
+      refreshRecents();
+      takeSnapshot(); // persist immediately: a crash right after saving must not lose the new path
+    } else if (!result.canceled) {
+      setNotice({ text: result.error, tone: 'danger' });
     }
   }
 
-  async function choosePref(p) {
-    setPref(await setThemePref(p));
+  async function closeTab(tabId) {
+    const tab = stateRef.current.tabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    if (tab.dirty) {
+      const choice = await window.feathermark.confirmCloseTab(tab.name); // native, one flow
+      if (choice === 2) return; // cancel — text intact
+      if (choice === 0) {
+        const result = tab.path
+          ? await window.feathermark.save(tab.id, tab.text)
+          : await window.feathermark.saveAs(tab.id, tab.text);
+        if (!result.ok) {
+          if (!result.canceled) setNotice({ text: result.error, tone: 'danger' });
+          return; // save failed or user backed out of dialog — tab stays open
+        }
+      }
+    }
+    setTabs((ts) => {
+      const rest = ts.filter((t) => t.id !== tabId);
+      if (rest.length === 0) setActiveId(null);
+      else if (stateRef.current.activeId === tabId) focusTab(rest[rest.length - 1].id);
+      return rest;
+    });
+    await window.feathermark.tabClosed(tabId);
   }
 
-  return h('div', { class: 'shell' },
-    h('main', { class: 'empty' },
-      h('img', { class: 'empty-mark', src: '../assets/icon.png', alt: '', width: 96, height: 96 }),
-      h('h1', { class: 'empty-title' }, 'FeatherDown'),
-      h('p', { class: 'empty-hint' },
-        'A quiet markdown editor. Open a file to start writing, or press Ctrl+O.'),
-      h('button', { class: 'empty-action', onClick: () => handleMenu('open-file') }, 'Open file'),
+  function reorderTabs(sourceId, targetId) {
+    setTabs((ts) => {
+      const srcIdx = ts.findIndex((t) => t.id === sourceId);
+      const tgtIdx = ts.findIndex((t) => t.id === targetId);
+      if (srcIdx < 0 || tgtIdx < 0 || srcIdx === tgtIdx) return ts;
+      const copy = [...ts];
+      const [moved] = copy.splice(srcIdx, 1);
+      copy.splice(tgtIdx, 0, moved);
+      return copy;
+    });
+  }
+
+  function cycleTab(forward = true) {
+    const { tabs: ts, activeId: a } = stateRef.current;
+    if (ts.length <= 1) return;
+    const curIdx = ts.findIndex((t) => t.id === a);
+    const nextIdx = forward
+      ? (curIdx + 1) % ts.length
+      : (curIdx - 1 + ts.length) % ts.length;
+    focusTab(ts[nextIdx].id);
+  }
+
+  function onEditorChange(text) {
+    const tabId = stateRef.current.activeId;
+    if (!tabId) return;
+    setTabs((ts) => ts.map((t) => {
+      if (t.id !== tabId) return t;
+      const wasClean = !t.dirty;
+      if (wasClean) window.feathermark.tabDirty(tabId, true);
+      return { ...t, text, dirty: true };
+    }));
+  }
+
+  function onCursorChange(cursor) {
+    const tabId = stateRef.current.activeId;
+    if (!tabId) return;
+    setTabs((ts) => ts.map((t) => (t.id === tabId ? { ...t, cursor } : t)));
+  }
+
+  function onScrollChange(scroll) {
+    const tabId = stateRef.current.activeId;
+    if (!tabId) return;
+    setTabs((ts) => ts.map((t) => (t.id === tabId ? { ...t, scroll } : t)));
+  }
+
+  // ---- session snapshot / restore ----
+
+  function buildSnapshot() {
+    const { tabs: ts, activeId: a } = stateRef.current;
+    return {
+      active: ts.findIndex((t) => t.id === a),
+      tabs: ts.map((t) => ({
+        id: t.id, path: t.path, dirty: t.dirty, cursor: t.cursor, scroll: t.scroll,
+        text: t.dirty && t.text.length <= SESSION_TEXT_CAP ? t.text : undefined,
+      })),
+    };
+  }
+
+  function takeSnapshot() {
+    return window.feathermark.snapshot(buildSnapshot());
+  }
+
+  async function restoreSession() {
+    const session = await window.feathermark.getSession();
+    if (!session || session.tabs.length === 0) { await newFile(); return; } // honest start: one empty tab, no void
+    const restored = [];
+    for (const t of session.tabs) {
+      let text = t.text;
+      if (text === undefined && t.path) {
+        const result = await window.feathermark.open(t.path);
+        text = result.ok ? result.content : '';
+        if (!result.ok) setNotice({ text: result.error, tone: 'danger', path: t.path });
+      }
+      restored.push({ id: t.id, path: t.path || null,
+        name: t.path ? basename(t.path) : 'Untitled',
+        text: text || '', dirty: !!t.dirty, cursor: t.cursor || 0, scroll: t.scroll || 0 });
+    }
+    for (const tab of restored) {
+      await window.feathermark.tabOpened(tab.id, tab.path);
+      if (tab.dirty) await window.feathermark.tabDirty(tab.id, true);
+    }
+    setTabs(restored);
+    const idx = Math.max(0, Math.min(session.active ?? 0, restored.length - 1));
+    focusTab(restored[idx].id);
+    requestAnimationFrame(() => {
+      const el = editorRef.current;
+      if (!el) return;
+      el.scrollTop = restored[idx].scroll;
+      el.setSelectionRange(restored[idx].cursor, restored[idx].cursor);
+    });
+  }
+
+  // ---- save-all (quit flow driven by main) ----
+
+  async function saveAll(tabIds) {
+    let ok = true;
+    for (const publicId of tabIds) {
+      const tab = stateRef.current.tabs.find((t) => t.id === publicId);
+      if (!tab || !tab.dirty) continue;
+      const result = tab.path
+        ? await window.feathermark.save(tab.id, tab.text)
+        : await window.feathermark.saveAs(tab.id, tab.text);
+      if (!result.ok) ok = false;
+      else markDirty(tab.id, false);
+    }
+    window.feathermark.saveAllDone(ok);
+  }
+
+  // ---- recents ----
+
+  async function refreshRecents() {
+    setRecents(await window.feathermark.getRecent());
+  }
+
+  async function forgetRecent(pathToForget) {
+    await window.feathermark.forgetRecent(pathToForget);
+    refreshRecents();
+  }
+
+  function onRecentClick(r) {
+    if (r.exists) return openPath(r.path);
+    // explain, never fail silently (copy rules: what went wrong + the fix)
+    setNotice({
+      tone: 'warning',
+      text: '“' + basename(r.path) + '” is no longer at ' + r.path + ' — it was moved, renamed, or deleted. Open it by name from its new location, or remove it from the list.',
+    });
+  }
+
+  // ---- effects: IPC wiring, once ----
+
+  useEffect(() => {
+    const off = [];
+    off.push(initTheme());
+    getThemePref().then(setPref);
+
+    off.push(window.feathermark.onMenu((action) => {
+      if (action === 'open-file') window.feathermark.openFileDialog().then((p) => p && openPath(p));
+      else if (action === 'new-file') newFile();
+      else if (action === 'save-file') saveActive();
+      else if (action === 'save-file-as') saveAsActive();
+      else if (action === 'close-tab') closeTab(stateRef.current.activeId);
+    }));
+
+    off.push(window.feathermark.onDropOpen((p) => openPath(p)));
+    off.push(window.feathermark.onSnapshotRequest(() => takeSnapshot()));
+    off.push(window.feathermark.onSaveAllRequest((tabIds) => saveAll(tabIds)));
+    off.push(window.feathermark.onRecoveryNotice((n) => {
+      setNotice({
+        tone: 'warning',
+        text: n.backupPath
+          ? 'Your settings file was corrupt and could not be read. FeatherMark saved a copy at ' + n.backupPath + ' and started with fresh settings. If your recent files or theme were lost, copy the values back from that file.'
+          : 'Your settings file was corrupt and could not be recovered to a copy. FeatherMark started with fresh settings.',
+      });
+    }));
+
+    refreshRecents();
+    restoreSession();
+    if (window.feathermark.getRecoveryNotice) {
+      window.feathermark.getRecoveryNotice().then((n) => {
+        if (n) {
+          setNotice({
+            tone: 'warning',
+            text: n.backupPath
+              ? 'Your settings file was corrupt and could not be read. FeatherMark saved a copy at ' + n.backupPath + ' and started with fresh settings. If your recent files or theme were lost, copy the values back from that file.'
+              : 'Your settings file was corrupt and could not be recovered to a copy. FeatherMark started with fresh settings.',
+          });
+        }
+      });
+    }
+    return () => { off.forEach((f) => f()); };
+  }, []);
+
+  // Autosave session snapshot debounced on state change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      takeSnapshot();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [tabs, activeId]);
+
+  // Window-level keyboard shortcuts
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        const key = e.key.toLowerCase();
+        if (key === 's' && !e.shiftKey) {
+          e.preventDefault();
+          saveActive();
+        } else if (key === 's' && e.shiftKey) {
+          e.preventDefault();
+          saveAsActive();
+        } else if (key === 'o' && !e.shiftKey) {
+          e.preventDefault();
+          window.feathermark.openFileDialog().then((p) => p && openPath(p));
+        } else if (key === 'n' && !e.shiftKey) {
+          e.preventDefault();
+          newFile();
+        } else if (key === 'w' && !e.shiftKey) {
+          e.preventDefault();
+          if (stateRef.current.activeId) closeTab(stateRef.current.activeId);
+        } else if (key === 'tab') {
+          e.preventDefault();
+          cycleTab(!e.shiftKey);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  // ---- drag over window (visual affordance; content arrives via main or webUtils) ----
+
+  useEffect(() => {
+    let depth = 0;
+    const onDragEnter = (e) => { e.preventDefault(); depth += 1; setDropping(true); };
+    const onDragOver = (e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; };
+    const onDragLeave = (e) => { e.preventDefault(); depth -= 1; if (depth <= 0) setDropping(false); };
+    const onDrop = (e) => {
+      e.preventDefault();
+      depth = 0;
+      setDropping(false);
+      const files = e.dataTransfer && e.dataTransfer.files;
+      if (files && files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+          let p = null;
+          try {
+            if (window.feathermark.getPathForFile) {
+              p = window.feathermark.getPathForFile(files[i]);
+            }
+          } catch (_) {}
+          if (!p && files[i].path) {
+            p = files[i].path;
+          }
+          if (p && /\.(md|markdown|txt)$/i.test(p)) {
+            openPath(p);
+            break;
+          }
+        }
+      }
+    };
+    document.addEventListener('dragenter', onDragEnter);
+    document.addEventListener('dragover', onDragOver);
+    document.addEventListener('dragleave', onDragLeave);
+    document.addEventListener('drop', onDrop);
+    return () => {
+      document.removeEventListener('dragenter', onDragEnter);
+      document.removeEventListener('dragover', onDragOver);
+      document.removeEventListener('dragleave', onDragLeave);
+      document.removeEventListener('drop', onDrop);
+    };
+  }, []);
+
+  const wordCount = active ? (active.text.match(/\S+/g) || []).length : 0;
+
+  // ---- render ----
+
+  return h('div', { class: 'shell' + (dropping ? ' is-dropping' : '') },
+    h('div', { class: 'workspace' },
+      h(TabBar, { tabs, activeId, onSelect: focusTab, onClose: closeTab, onNew: newFile, onReorder: reorderTabs }),
+      notice && h('div', { class: 'notice notice-' + notice.tone, role: 'alert' },
+        h('span', {}, notice.text),
+        h('button', { class: 'notice-close', 'aria-label': 'Dismiss', onClick: () => setNotice(null) }, '×'),
+      ),
+      loading && h('div', { class: 'loading' }, h('span', { class: 'loading-bar', 'aria-label': 'Loading file' })),
+      tabs.length === 0 ? h('main', { class: 'empty' },
+        h('p', { class: 'empty-hint' }, 'Open a file to start writing, or press Ctrl+O.'),
+        h('button', { class: 'empty-action', onClick: () => window.feathermark.openFileDialog().then((p) => p && openPath(p)) }, 'Open a file'),
+        h(RecentFiles, { recents, onOpen: onRecentClick, onForget: forgetRecent }),
+      ) : h('main', { class: 'editor-surface' },
+        active && h(Editor, {
+          key: active.id,
+          tabId: active.id,
+          initialText: active.text,
+          initialCursor: active.cursor,
+          initialScroll: active.scroll,
+          onChange: onEditorChange,
+          onCursorChange: onCursorChange,
+          onScrollChange: onScrollChange,
+        }),
+      ),
     ),
-    showTokens && h(TokenProof, null),
-    h('footer', { class: 'statusbar' },
-      h('span', {}, lastPath ? basename(lastPath) : 'No file open'),
+    dropping && h('div', { class: 'drop-overlay' },
+      h('div', { class: 'drop-frame' }, 'Drop a Markdown or text file to open it'),
+    ),
+    h('footer', { class: 'statusbar' + (savedBeat ? ' is-saved' : '') },
+      h('span', { class: 'status-file' }, active
+        ? active.name + (active.dirty ? ' ·' : '') + ' — ' + (active.path || 'not saved yet')
+        : 'No file open'),
       h('div', { class: 'statusbar-right' },
+        h('span', { class: 'status-count' }, wordCount + ' words'),
         h('button', {
-          class: 'tokens-toggle',
-          'aria-pressed': showTokens,
-          onClick: () => setShowTokens((s) => !s),
-        }, 'Tokens'),
+          class: 'status-saved', 'aria-live': 'polite',
+          disabled: !savedBeat,
+        }, savedBeat ? 'Saved' : ' '),
         h('div', { class: 'statusbar-theme', role: 'group', 'aria-label': 'Theme' },
           THEME_PREFS.map((p) => h('button', {
             key: p,
             'aria-pressed': pref === p,
-            onClick: () => choosePref(p),
+            onClick: () => setThemePref(p).then(setPref),
           }, p === 'auto' ? 'System' : p[0].toUpperCase() + p.slice(1))),
         ),
       ),
     ),
   );
-}
-
-function basename(p) {
-  return p.split(/[\\/]/).pop();
 }
 
 render(h(App, null), document.getElementById('root'));

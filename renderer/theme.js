@@ -1,4 +1,4 @@
-// FeatherDown — theme logic: OS detection lives in main; this is the renderer half.
+// FeatherMark — theme logic: OS detection lives in main; this is the renderer half.
 // Pref ('auto'|'light'|'dark') persists through settings; effective theme lands on <html data-theme>.
 
 let current = null;
@@ -12,18 +12,18 @@ function apply(theme) {
 }
 
 export function initTheme() {
-  window.featherdown.getTheme().then(apply);
-  return window.featherdown.onThemeChanged(apply); // unsubscribe fn
+  window.feathermark.getTheme().then(apply);
+  return window.feathermark.onThemeChanged(apply); // unsubscribe fn
 }
 
 export async function setThemePref(pref) {
-  const theme = await window.featherdown.setThemePref(pref);
+  const theme = await window.feathermark.setThemePref(pref);
   apply(theme);
   return pref;
 }
 
 export function getThemePref() {
-  return window.featherdown.getSettings('theme', 'auto');
+  return window.feathermark.getSettings('theme', 'auto');
 }
 
 export function onThemeChange(cb) {

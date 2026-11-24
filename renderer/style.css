@@ -1,5 +1,6 @@
-/* FeatherDown — global styles. Phase 02: token-driven foundation + placeholder workspace
-   (placeholder is replaced by the real shell in phase 04).
+/* FeatherMark — global styles. Phase 03: real workspace shell — tab bar, editor
+   surface, recents, notices, drop affordance. (Placeholder + token-proof panel from
+   phase 02 removed, as promised in their notes.)
    No one-off hex here — every value traces to tokens.css (DESIGN_TOKENS.md §4). */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -56,7 +57,224 @@ button {
   background: var(--app-bg);
 }
 
-/* ---- Placeholder workspace ---- */
+.workspace {
+  display: grid;
+  grid-template-rows: auto auto 1fr; /* tabbar, notices/loading, content */
+  min-height: 0;
+}
+
+/* ---- Tab bar (DESIGN_TOKENS.md §3 interface tokens) ---- */
+
+.tabbar {
+  display: flex;
+  align-items: stretch;
+  background: var(--sidebar-bg);
+  border-bottom: 1px solid var(--border);
+  min-height: 34px;
+  overflow-x: auto;
+  scrollbar-width: none; /* chrome strip, not a scroll region */
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  background: var(--tab-inactive-bg);
+  border-right: 1px solid var(--border);
+  border-bottom: 2px solid transparent;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  max-width: 220px;
+  user-select: none;
+}
+
+.tab.is-active {
+  background: var(--tab-active-bg);
+  color: var(--text-primary);
+  border-bottom-color: var(--tab-indicator);
+}
+
+.tab.is-drop-target {
+  border-left: 2px solid var(--accent);
+  background: var(--surface-hover);
+}
+
+.tab:hover:not(.is-active) { background: var(--surface-hover); }
+
+.tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-dirty {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--unsaved-dot);
+}
+
+.tab-close {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-control);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 1;
+  opacity: 0;
+  transition: background var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+}
+
+/* 44px tap target area for accessibility */
+.tab-close::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 34px;
+}
+
+.tab:hover .tab-close,
+.tab.is-active .tab-close,
+.tab-close:focus-visible { opacity: 1; }
+
+.tab-close:hover { background: var(--toolbar-hover); color: var(--text-primary); }
+
+.tab-new {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-control);
+  color: var(--text-muted);
+  font-size: var(--text-lg);
+  line-height: 1;
+  align-self: center;
+  margin: 0 var(--space-2);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.tab-new:hover { background: var(--toolbar-hover); color: var(--text-primary); }
+
+/* ---- Notices (error/recovery: what went wrong + the fix) ---- */
+
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  border-bottom: 1px solid var(--border);
+}
+
+.notice > span { overflow-wrap: anywhere; } /* recovery notices name full paths — they must wrap, not clip */
+
+.notice-danger {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  border-left: 3px solid var(--danger);
+}
+
+.notice-warning {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  border-left: 3px solid var(--warning);
+}
+
+[data-theme="dark"] .notice-danger,
+[data-theme="dark"] .notice-warning { background: var(--surface-active); }
+
+.notice-close {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-control);
+  color: var(--text-muted);
+}
+
+.notice-close:hover { background: var(--surface-hover); color: var(--text-primary); }
+
+/* ---- Loading: fixed-height indeterminate strip, never shifts the layout ---- */
+
+.loading {
+  height: 2px;
+  overflow: hidden;
+  background: var(--border);
+}
+
+.loading-bar {
+  display: block;
+  height: 100%;
+  width: 33%;
+  background: var(--accent);
+  animation: loading-slide 900ms ease-in-out infinite;
+}
+
+@keyframes loading-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+/* ---- Editor surface (CodeMirror 6, Phase 04) ---- */
+
+.editor-surface {
+  min-height: 0;
+  background: var(--editor-bg);
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.editor-pane-container {
+  container-type: inline-size;
+  container-name: editor;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--editor-bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.editor-cm-wrapper {
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cm-editor {
+  height: 100% !important;
+  background: var(--editor-bg);
+}
+
+.cm-scroller {
+  overflow: auto;
+  font-family: var(--font-editor);
+}
+
+/* Container query responsiveness: fluid clamping at narrow split widths (Dynamic UI Engine) */
+@container editor (max-width: 480px) {
+  .cm-content {
+    padding: var(--space-4) var(--space-3) !important;
+  }
+}
+
+/* ---- Empty state (no tabs) ---- */
 
 .empty {
   display: flex;
@@ -65,20 +283,8 @@ button {
   justify-content: center;
   gap: var(--space-3);
   padding: var(--space-8);
-}
-
-.empty-mark {
-  width: 96px;
-  height: 96px;
-  border-radius: 27px; /* clips the PNG's white corners outside its own squircle */
-}
-
-.empty-title {
-  font-size: var(--text-xl);
-  font-weight: 600;
-  letter-spacing: var(--tracking-display);
-  line-height: 1.1;
-  color: var(--text-primary);
+  min-height: 0;
+  overflow: auto;
 }
 
 .empty-hint {
@@ -90,7 +296,6 @@ button {
 }
 
 .empty-action {
-  margin-top: var(--space-2);
   padding: var(--space-2) var(--space-6);
   border-radius: var(--radius-control);
   background: var(--accent);
@@ -104,6 +309,113 @@ button {
 
 [data-theme="dark"] .empty-action { color: var(--app-bg); }
 
+/* ---- Recent files ---- */
+
+.recents {
+  width: min(520px, 100%);
+  margin-top: var(--space-6);
+}
+
+.recents-title {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0 var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.recents-list { list-style: none; }
+
+.recents-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-control);
+  transition: background var(--transition-fast);
+}
+
+.recents-item:hover { background: var(--surface-hover); }
+
+.recents-open {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  justify-content: start;
+  gap: 0 var(--space-2);
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+}
+
+.recents-name {
+  grid-row: 1;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 30ch;
+}
+
+.recents-flag {
+  grid-row: 1;
+  align-self: center;
+  font-size: var(--text-xs);
+  color: var(--warning);
+}
+
+.recents-dir {
+  grid-row: 2;
+  grid-column: 1 / span 2;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recents-item.is-missing .recents-name { color: var(--text-muted); }
+
+.recents-forget {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-right: var(--space-2);
+  border-radius: var(--radius-control);
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
+}
+
+.recents-item:hover .recents-forget,
+.recents-forget:focus-visible { opacity: 1; }
+
+.recents-forget:hover { background: var(--surface-active); color: var(--text-primary); }
+
+/* ---- Drop affordance: tone-step surface, no glow (guardrail) ---- */
+
+.drop-overlay {
+  position: fixed;
+  inset: var(--space-4);
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 78%, transparent);
+  pointer-events: none; /* the drop is consumed by main, not this layer */
+}
+
+.drop-frame {
+  padding: var(--space-3) var(--space-6);
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-control);
+  background: var(--editor-bg);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
 /* ---- Status bar ---- */
 
 .statusbar {
@@ -116,6 +428,18 @@ button {
   border-top: 1px solid var(--border);
   font-size: var(--text-xs);
   color: var(--text-muted);
+  transition: background var(--transition-base);
+}
+
+/* Save feedback = status surface takes the --success tone for a beat. One signal, no toast. */
+.statusbar.is-saved { background: var(--success); color: var(--editor-bg); }
+
+[data-theme="dark"] .statusbar.is-saved { color: var(--app-bg); }
+
+.status-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .statusbar-right {
@@ -124,10 +448,18 @@ button {
   gap: var(--space-2);
 }
 
+.status-count { font-variant-numeric: tabular-nums; }
+
+.status-saved {
+  min-width: 3.5em;
+  text-align: right;
+  font-size: var(--text-xs);
+  color: inherit;
+}
+
 .statusbar-theme { display: flex; gap: var(--space-1); }
 
-.statusbar-theme button,
-.tokens-toggle {
+.statusbar-theme button {
   padding: 2px var(--space-2);
   border-radius: var(--radius-control);
   font-size: var(--text-xs);
@@ -135,67 +467,9 @@ button {
   transition: background var(--transition-fast);
 }
 
-.statusbar-theme button:hover,
-.tokens-toggle:hover { background: var(--surface-hover); }
+.statusbar-theme button:hover { background: var(--surface-hover); }
 
 .statusbar-theme button[aria-pressed="true"] {
   background: var(--surface-active);
   color: var(--text-primary);
-}
-
-.tokens-toggle[aria-pressed="true"] { background: var(--accent-soft); color: var(--text-primary); }
-
-/* ---- Token proof panel (temporary, phase 02 deliverable; removed in phase 04) ---- */
-
-.token-proof {
-  position: fixed;
-  inset: var(--space-4) var(--space-4) calc(28px + var(--space-4)) var(--space-4);
-  background: var(--editor-bg);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-control);
-  box-shadow: var(--shadow-float); /* floats — the only place a shadow is legal */
-  overflow: auto;
-  padding: var(--space-6);
-}
-
-.token-proof h2 {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  letter-spacing: var(--tracking-display);
-  margin-bottom: var(--space-4);
-}
-
-.token-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--space-3);
-}
-
-.token-swatch {
-  display: grid;
-  grid-template-columns: 32px 1fr;
-  gap: var(--space-3);
-  align-items: center;
-  padding: var(--space-2);
-  background: var(--sidebar-bg);
-  border-radius: var(--radius-control);
-}
-
-.token-swatch .chip {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-control);
-  border: 1px solid var(--border-strong);
-}
-
-.token-swatch .name {
-  font-size: var(--text-xs);
-  color: var(--text-primary);
-  word-break: break-all;
-}
-
-.token-swatch .value {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
 }
