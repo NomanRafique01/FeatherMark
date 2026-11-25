@@ -20,6 +20,25 @@ body {
               color 400ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Visible fallback while the renderer bundle is parsing. This is intentionally
+   static: the app must never expose a blank white window or a fake spinner. */
+.boot-screen {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  background: var(--app-bg);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.boot-screen img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}
+
 button {
   font: inherit;
   color: inherit;
@@ -650,26 +669,18 @@ button {
 
 .notice-close:hover { background: var(--surface-hover); color: var(--text-primary); }
 
-/* ---- Loading: fixed-height indeterminate strip, never shifts the layout ---- */
+/* ---- Loading: honest, quiet status; no fake/indeterminate animation ---- */
 
 .loading {
   flex: 0 0 auto;
-  height: 2px;
-  overflow: hidden;
+  min-height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-3);
   background: var(--border);
-}
-
-.loading-bar {
-  display: block;
-  height: 100%;
-  width: 33%;
-  background: var(--accent);
-  animation: loading-slide 900ms ease-in-out infinite;
-}
-
-@keyframes loading-slide {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(400%); }
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
 }
 
 /* ---- Outline Rail (Phase 06) ---- */
@@ -1439,8 +1450,6 @@ button {
   line-height: 1.6;
   color: var(--text-primary);
   word-break: break-word;
-  transition: max-width 180ms cubic-bezier(0.22, 1, 0.36, 1),
-              padding 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @container preview (max-width: 520px) {

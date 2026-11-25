@@ -7,6 +7,20 @@ const fs = require('fs');
 const fsp = fs.promises;
 const settings = require('./store/settings');
 
+// Keep development/test data completely separate from installed-user data.
+// Production data stays in the normal per-app directory so upgrades retain
+// user state, while a source checkout cannot leak its state into an install.
+const appDataFolder = app.isPackaged ? 'FeatherMark' : 'FeatherMark-Development';
+const appUserData = path.join(app.getPath('appData'), appDataFolder);
+app.setPath('userData', appUserData);
+app.setAppUserModelId('com.feathermark.app');
+settings.configure(appUserData);
+
+const MARKDOWN_FILE_RE = /\.(md|markdown|mdown|mkdn|mkd|mdwn)$/i;
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+let pendingExternalFile = findMarkdownArgument(process.argv);
+let rendererReady = false;
+
 const THEME_BG = { light: '#F5F3ED', dark: '#20231F' }; // DESIGN_TOKENS.md --app-bg
 const FILE_FILTERS = [
   { name: 'Markdown', extensions: ['md', 'markdown'] },
@@ -21,6 +35,39 @@ function toThemeSource(pref) {
 }
 
 let mainWindow = null;
+
+function findMarkdownArgument(args) {
+  if (!Array.isArray(args)) return null;
+  for (const value of args) {
+    if (typeof value !== 'string' || value.startsWith('-')) continue;
+    const candidate = path.resolve(value);
+    if (MARKDOWN_FILE_RE.test(candidate) && fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function openExternalFile(filePath) {
+  if (!filePath) return;
+  pendingExternalFile = filePath;
+  if (!mainWindow || mainWindow.isDestroyed() || !rendererReady) return;
+  const nextPath = pendingExternalFile;
+  pendingExternalFile = null;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+  sendToRenderer('feathermark:drop-open', nextPath);
+}
+
+if (hasSingleInstanceLock) {
+  app.on('second-instance', (_event, commandLine) => {
+    openExternalFile(findMarkdownArgument(commandLine));
+  });
+  app.on('open-file', (event, filePath) => {
+    event.preventDefault();
+    openExternalFile(filePath);
+  });
+} else {
+  app.quit();
+}
 
 function effectiveTheme() {
   const pref = settings.get('theme', 'auto');
@@ -70,8 +117,9 @@ function clampBoundsToDisplay(bounds) {
 }
 
 function createWindow() {
-  // Size the window as ~80% of the primary display's work area on first launch,
-  // then honour whatever the user saved in settings.
+  rendererReady = false;
+  // Size the window as ~80% of the primary display's work area for normal/restored
+  // bounds, then honour whatever the user saved in settings.
   const primaryWorkArea = screen.getPrimaryDisplay().workArea;
   const defaultWidth  = Math.round(primaryWorkArea.width  * 0.80);
   const defaultHeight = Math.round(primaryWorkArea.height * 0.80);
@@ -79,7 +127,7 @@ function createWindow() {
   // Restore saved bounds if they exist; clamp to the current display so the
   // window is never placed off-screen after a monitor change.
   const savedBounds = settings.get('windowBounds', null);
-  let initialBounds = savedBounds
+  const normalBounds = savedBounds
     ? clampBoundsToDisplay(savedBounds)
     : {
         x: primaryWorkArea.x + Math.round((primaryWorkArea.width  - defaultWidth)  / 2),
@@ -87,6 +135,15 @@ function createWindow() {
         width:  defaultWidth,
         height: defaultHeight,
       };
+
+  // Start maximised on first launch (no savedBounds) or when last closed maximised.
+  // Crucially, create the BrowserWindow at the target display's full workArea size
+  // so Chromium's very first paint is already full-bleed — avoiding the Windows
+  // frameless-window lag where an 80%-sized surface briefly renders inside a
+  // maximised frame before snapping to full size.
+  const shouldStartMaximized = settings.get('windowMaximized', !savedBounds);
+  const targetWorkArea = screen.getDisplayNearestPoint({ x: normalBounds.x, y: normalBounds.y }).workArea;
+  const initialBounds = shouldStartMaximized ? targetWorkArea : normalBounds;
 
   mainWindow = new BrowserWindow({
     ...initialBounds,
@@ -98,7 +155,7 @@ function createWindow() {
     frame: false,
     backgroundColor: THEME_BG[effectiveTheme()],
     show: false,
-    icon: path.join(__dirname, 'assets', 'icon.png'),
+    icon: path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -106,6 +163,10 @@ function createWindow() {
       sandbox: true,
     },
   });
+
+  // If we created the window at targetWorkArea size so it paints full-bleed,
+  // restore to normalBounds the first time the user unmaximizes.
+  let pendingRestoreBounds = shouldStartMaximized ? normalBounds : null;
 
   // Persist window bounds every time the user moves or resizes.
   const saveBounds = () => {
@@ -117,15 +178,39 @@ function createWindow() {
   };
   mainWindow.on('resized', saveBounds);
   mainWindow.on('moved',   saveBounds);
+  mainWindow.on('maximize', () => {
+    settings.set('windowMaximized', true);
+  });
+  mainWindow.on('unmaximize', () => {
+    settings.set('windowMaximized', false);
+    if (pendingRestoreBounds && mainWindow && !mainWindow.isDestroyed()) {
+      const restoreTo = pendingRestoreBounds;
+      pendingRestoreBounds = null;
+      mainWindow.setBounds(restoreTo);
+    }
+  });
 
-  mainWindow.once('ready-to-show', () => {
-    // Start maximised if no prior position was saved, otherwise restore to the
-    // saved (clamped) bounds and let the user decide to maximise.
-    if (!savedBounds) mainWindow.maximize();
+  let hasShown = false;
+
+  const showWhenReady = () => {
+    if (hasShown || !mainWindow || mainWindow.isDestroyed()) return;
+    hasShown = true;
+    clearTimeout(showFallbackTimer);
+    if (shouldStartMaximized) mainWindow.maximize();
     mainWindow.show();
     const notice = settings.takeRecoveryNotice();
     if (notice) sendToRenderer('feathermark:recovery-notice', notice);
+  };
+
+  // Showing is tied to the renderer's first paint, not async hydration. The
+  // renderer renders a real welcome surface immediately, so slow file recovery
+  // can never leave the user staring at a blank window.
+  const showFallbackTimer = setTimeout(showWhenReady, 1500);
+
+  mainWindow.once('ready-to-show', () => {
+    showWhenReady();
   });
+  mainWindow.webContents.once('did-finish-load', showWhenReady);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
   // Keep renderer startup failures visible when the window is blank. Electron's
@@ -382,6 +467,17 @@ ipcMain.handle('feathermark:window-control', (_e, action) => {
   return true;
 });
 
+ipcMain.on('feathermark:app-ready', (e) => {
+  if (mainWindow && !mainWindow.isDestroyed() && e.sender === mainWindow.webContents) {
+    rendererReady = true;
+    if (pendingExternalFile) {
+      const nextPath = pendingExternalFile;
+      pendingExternalFile = null;
+      sendToRenderer('feathermark:drop-open', nextPath);
+    }
+  }
+});
+
 // ---- Exit / Close: exactly one confirm flow, native, with Save all / Don’t save / Cancel ----
 // The renderer owns text, so "Save all" asks it to flush every dirty tab, then quits
 // when the renderer reports done. Cancel returns to the editor with everything intact.
@@ -589,15 +685,18 @@ function buildMenu() {
   ]);
 }
 
-app.whenReady().then(() => {
-  nativeTheme.themeSource = toThemeSource(settings.get('theme', 'auto'));
-  Menu.setApplicationMenu(null);
-  createWindow();
+if (hasSingleInstanceLock) {
+  app.whenReady().then(() => {
+    settings.initFirstRun(app.getVersion());
+    nativeTheme.themeSource = toThemeSource(settings.get('theme', 'auto'));
+    Menu.setApplicationMenu(null);
+    createWindow();
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
   });
-});
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

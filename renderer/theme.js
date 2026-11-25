@@ -12,7 +12,7 @@ function apply(theme) {
 }
 
 export function initTheme() {
-  window.feathermark.getTheme().then(apply);
+  initTheme.ready = window.feathermark.getTheme().then(apply);
   return window.feathermark.onThemeChanged(apply); // unsubscribe fn
 }
 

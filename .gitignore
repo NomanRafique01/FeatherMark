@@ -9,6 +9,10 @@ dist/
 *.log
 .taste-skill/
 .qoder/
+.agents/
+.codex/
+.agentpulse
+build/
 
 # OS noise
 Thumbs.db

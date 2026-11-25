@@ -9,6 +9,7 @@
 //   getTheme()                        -> Promise<'light'|'dark'> feathermark:get-theme
 //   setThemePref('auto'|'light'|'dark') -> Promise<'light'|'dark'> feathermark:set-theme-pref
 //   windowControl('minimize'|'maximize'|'close') -> Promise<boolean> feathermark:window-control
+//   appReady()                        -> (fire and forget)     feathermark:app-ready
 //   onThemeChanged(cb)                -> unsubscribe fn        ipc event feathermark:theme-changed
 //   onMenu(cb)                        -> unsubscribe fn        ipc event feathermark:menu
 //                                                  ('new-file'|'open-file'|'save-file'|'save-file-as'|'close-tab'|'find-replace'|'toggle-preview'|'toggle-outline')
@@ -50,6 +51,7 @@ contextBridge.exposeInMainWorld('feathermark', {
   getTheme: () => ipcRenderer.invoke('feathermark:get-theme'),
   setThemePref: (pref) => ipcRenderer.invoke('feathermark:set-theme-pref', pref),
   windowControl: (action) => ipcRenderer.invoke('feathermark:window-control', action),
+  appReady: () => ipcRenderer.send('feathermark:app-ready'),
 
   openFileDialog: () => ipcRenderer.invoke('feathermark:open-file-dialog'),
   open: (filePath) => ipcRenderer.invoke('feathermark:open', filePath),

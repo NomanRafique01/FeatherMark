@@ -8,7 +8,7 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "build:renderer": "esbuild renderer/app.jsx --bundle --jsx=automatic --jsx-import-source=preact --loader:.jsx=jsx --loader:.woff2=file --loader:.woff=file --format=iife --outfile=renderer/dist/app.js",
+    "build:renderer": "esbuild ./renderer/app.jsx --bundle --jsx=automatic --jsx-import-source=preact --loader:.jsx=jsx --loader:.woff2=file --loader:.woff=file --format=iife --outfile=./renderer/dist/app.js",
     "watch:renderer": "npm run build:renderer -- --watch",
     "start": "npm run build:renderer && electron .",
     "dist": "npm run build:renderer && electron-builder"

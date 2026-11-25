@@ -1,17 +1,27 @@
-// FeatherMark — settings store: one flat JSON file at ~/.feathermark/settings.json.
+// FeatherMark — settings store: one flat JSON file in the app's userData folder.
 // No database. Atomic writes; corrupt file is backed up and reset, never silently lost.
 
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
 
-const DIR = path.join(os.homedir(), '.feathermark');
-const FILE = path.join(DIR, 'settings.json');
+// The packaged app configures this to Electron's per-app userData directory.
+// Keep a source-run fallback so the store remains usable in isolated tests.
+let DIR = path.join(os.homedir(), '.feathermark');
+let FILE = path.join(DIR, 'settings.json');
 
 const RECENT_MAX = 15;
 
 let cache = null;
 let recoveryNotice = null; // set once per run when a corrupt file was reset
+
+function configure(dataDir) {
+  if (typeof dataDir !== 'string' || dataDir.length === 0) return;
+  DIR = dataDir;
+  FILE = path.join(DIR, 'settings.json');
+  cache = null;
+  recoveryNotice = null;
+}
 
 function load() {
   if (cache) return cache;
@@ -68,7 +78,9 @@ function write(key, value) {
 }
 
 module.exports = {
-  FILE,
+  get FILE() { return FILE; },
+
+  configure,
 
   get(key, fallback) {
     const data = load();
@@ -112,6 +124,37 @@ module.exports = {
 
   clearSession() {
     return write('session', null);
+  },
+
+  // First-run initialization: detect first launch and initialize clean defaults once,
+  // preserving recentFiles if already present across an install/upgrade.
+  initFirstRun(appVersion) {
+    ensureDir();
+    const data = load();
+    if (data.firstRunCompleted) return false;
+
+    const existingRecents = Array.isArray(data.recentFiles) ? data.recentFiles : [];
+    cache = {
+      theme: 'auto',
+      viewMode: 'split',
+      outlineOpen: false,
+      toolbarOpen: false,
+      focusMode: false,
+      splitRatio: 0.5,
+      windowMaximized: true,
+      session: null,
+      recentFiles: existingRecents,
+      firstRunCompleted: true,
+      firstRunAt: new Date().toISOString(),
+      installedVersion: appVersion || null,
+    };
+    try {
+      persist();
+      return true;
+    } catch (err) {
+      console.error('first-run settings init failed:', err.message);
+      return false;
+    }
   },
 
   // One-shot: reported once per run, then cleared so the notice doesn't linger.

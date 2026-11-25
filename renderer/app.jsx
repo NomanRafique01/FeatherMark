@@ -809,16 +809,8 @@ function App() {
 
   async function refreshRecents() {
     const mainRecents = await window.feathermark.getRecent();
-    const existsByPath = new Map(mainRecents.map((r) => [r.path, r.exists]));
-    let localPaths = loadLocalRecents();
-    if (localPaths === null) {
-      localPaths = mainRecents.map((r) => r.path);
-      saveLocalRecents(localPaths);
-    }
-    setRecents(localPaths.map((p) => ({
-      path: p,
-      exists: existsByPath.has(p) ? existsByPath.get(p) : true,
-    })));
+    saveLocalRecents(mainRecents.map((r) => r.path));
+    setRecents(mainRecents);
   }
 
   async function forgetRecent(pathToForget) {
@@ -860,9 +852,9 @@ function App() {
   // ---- effects: IPC wiring, once ----
 
   useEffect(() => {
+    let cancelled = false;
     const off = [];
     off.push(initTheme());
-    getThemePref().then(setPref);
 
     off.push(window.feathermark.onMenu((action) => {
       if (action === 'open-file') window.feathermark.openFileDialog().then((p) => p && openPath(p));
@@ -879,12 +871,6 @@ function App() {
       else if (action === 'redo') { if (editorHandleRef.current) editorHandleRef.current.redo(); }
     }));
 
-    window.feathermark.getSettings('viewMode', 'split').then((v) => {
-      if (VIEW_MODES.includes(v)) setViewMode(v);
-    });
-    window.feathermark.getSettings('outlineOpen', false).then((v) => setOutlineOpen(!!v));
-    window.feathermark.getSettings('toolbarOpen', false).then((v) => setToolbarOpen(!!v));
-    window.feathermark.getSettings('focusMode', false).then((v) => setFocusMode(!!v));
     // Always start split divider at center (0.5); never restore a saved ratio.
     setSplitRatio(0.5);
     window.feathermark.setSettings('splitRatio', 0.5);
@@ -920,21 +906,48 @@ function App() {
       });
     }));
 
-    refreshRecents();
-    restoreSession();
-    if (window.feathermark.getRecoveryNotice) {
-      window.feathermark.getRecoveryNotice().then((n) => {
-        if (n) {
-          setNotice({
-            tone: 'warning',
-            text: n.backupPath
-              ? 'Your settings file was corrupt and could not be read. FeatherMark saved a copy at ' + n.backupPath + ' and started with fresh settings. If your recent files or theme were lost, copy the values back from that file.'
-              : 'Your settings file was corrupt and could not be recovered to a copy. FeatherMark started with fresh settings.',
-          });
-        }
+    // Hydrate all initial state before showing the window so the first visible
+    // frame has the exact theme, mode pill, recents, and session with zero flash.
+    Promise.all([
+      initTheme.ready,
+      getThemePref().then((p) => { if (!cancelled) setPref(p); }),
+      window.feathermark.getSettings('viewMode', 'split').then((v) => {
+        if (!cancelled && VIEW_MODES.includes(v)) setViewMode(v);
+      }),
+      window.feathermark.getSettings('outlineOpen', false).then((v) => {
+        if (!cancelled) setOutlineOpen(!!v);
+      }),
+      window.feathermark.getSettings('toolbarOpen', false).then((v) => {
+        if (!cancelled) setToolbarOpen(!!v);
+      }),
+      window.feathermark.getSettings('focusMode', false).then((v) => {
+        if (!cancelled) setFocusMode(!!v);
+      }),
+      refreshRecents(),
+      restoreSession(),
+      window.feathermark.getRecoveryNotice
+        ? window.feathermark.getRecoveryNotice().then((n) => {
+            if (!cancelled && n) {
+              setNotice({
+                tone: 'warning',
+                text: n.backupPath
+                  ? 'Your settings file was corrupt and could not be read. FeatherMark saved a copy at ' + n.backupPath + ' and started with fresh settings. If your recent files or theme were lost, copy the values back from that file.'
+                  : 'Your settings file was corrupt and could not be recovered to a copy. FeatherMark started with fresh settings.',
+              });
+            }
+          })
+        : Promise.resolve(),
+    ]).finally(() => {
+      if (cancelled) return;
+      requestAnimationFrame(() => {
+        if (!cancelled && window.feathermark.appReady) window.feathermark.appReady();
       });
-    }
-    return () => { off.forEach((f) => f()); };
+    });
+
+    return () => {
+      cancelled = true;
+      off.forEach((f) => f());
+    };
   }, []);
 
   // Autosave session snapshot debounced on state change
@@ -1093,7 +1106,7 @@ function App() {
             'stroke-width': '1.5', 'stroke-linecap': 'round', 'aria-hidden': 'true',
           }, h('path', { d: 'M4.5 4.5l7 7M11.5 4.5l-7 7' }))),
       ),
-      loading && h('div', { class: 'loading' }, h('span', { class: 'loading-bar', 'aria-label': 'Loading file' })),
+      loading && h('div', { class: 'loading', role: 'status' }, 'Opening file…'),
       tabs.length === 0 ? h('main', { class: 'empty' },
         h('div', { class: 'empty-shell' },
           h('div', { class: 'empty-hero' },
