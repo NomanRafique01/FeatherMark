@@ -27,9 +27,20 @@ const PlusIcon = () => h(TabIcon, { size: 14 },
   h('path', { d: 'M8 4v8M4 8h8' }),
 );
 
+function parentDirName(filePath) {
+  if (!filePath) return '';
+  const parts = filePath.split(/[\\/]/).filter(Boolean);
+  return parts.length >= 2 ? parts[parts.length - 2] : '';
+}
+
 export function TabBar({ tabs, activeId, onSelect, onClose, onNew, onReorder }) {
   const [draggingId, setDraggingId] = useState(null);
   const [dropTargetId, setDropTargetId] = useState(null);
+
+  const nameCounts = new Map();
+  for (const t of tabs) {
+    nameCounts.set(t.name, (nameCounts.get(t.name) || 0) + 1);
+  }
 
   function handleKeyDown(e, tabId, index) {
     if (e.key === 'ArrowRight') {
@@ -106,6 +117,7 @@ export function TabBar({ tabs, activeId, onSelect, onClose, onNew, onReorder }) 
       },
         h('span', { class: 'tab-file-icon', 'aria-hidden': 'true' }, h(DocIcon)),
         h('span', { class: 'tab-name' }, tab.name),
+        nameCounts.get(tab.name) > 1 && tab.path && h('span', { class: 'tab-dir' }, parentDirName(tab.path)),
         tab.dirty && h('span', {
           class: 'tab-dirty',
           title: 'Unsaved changes',

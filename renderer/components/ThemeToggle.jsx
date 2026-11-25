@@ -13,22 +13,33 @@ export const THEME_OPTIONS = [
 export function useSlidingPill(value) {
   const containerRef = useRef(null);
   const pillRef = useRef(null);
+  const mountedRef = useRef(false);
 
   useLayoutEffect(() => {
     const container = containerRef.current;
     const pill = pillRef.current;
     if (!container || !pill) return undefined;
 
-    const syncPill = () => {
+    const syncPill = (instant = false) => {
       const activeBtn = container.querySelector('[aria-pressed="true"]');
       if (!activeBtn) return;
       const padLeft = parseFloat(getComputedStyle(container).paddingLeft) || 0;
+      if (instant) pill.style.transition = 'none';
       pill.style.transform = `translateX(${activeBtn.offsetLeft - padLeft}px)`;
       pill.style.width = `${activeBtn.offsetWidth}px`;
+      if (instant) {
+        // Commit layout immediately so subsequent value changes still animate smoothly
+        void pill.offsetWidth;
+        pill.style.transition = '';
+      }
     };
 
-    syncPill();
-    const observer = new ResizeObserver(syncPill);
+    // Instant on first mount (no startup slide-in); smooth on user value changes
+    syncPill(!mountedRef.current);
+    mountedRef.current = true;
+
+    // Instant on container resize so the pill tracks fluid button widths with zero lag
+    const observer = new ResizeObserver(() => syncPill(true));
     observer.observe(container);
     return () => observer.disconnect();
   }, [value]);

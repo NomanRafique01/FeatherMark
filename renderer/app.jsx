@@ -31,6 +31,14 @@ function basename(p) {
   return p.split(/[\\/]/).pop();
 }
 
+function normalizePath(p) {
+  return typeof p === 'string' ? p.replace(/\\/g, '/').toLowerCase() : '';
+}
+
+function samePath(a, b) {
+  return !!a && !!b && normalizePath(a) === normalizePath(b);
+}
+
 function makeTab(path, text) {
   return { id: newTabId(), path: path || null, name: path ? basename(path) : 'Untitled',
     text, dirty: false, cursor: 0, scroll: 0, previewScroll: 0 };
@@ -75,7 +83,29 @@ const MissingDocIcon = () => h(EmptyIcon, { size: 16 },
   h('circle', { cx: '8', cy: '11.8', r: '0.5', fill: 'currentColor', stroke: 'none' }),
 );
 
-function RecentFiles({ recents, onOpen, onForget, onClearMissing }) {
+const RECENTS_STORAGE_KEY = 'feathermark.recents';
+const RECENTS_LIMIT = 20;
+
+function loadLocalRecents() {
+  try {
+    const raw = localStorage.getItem(RECENTS_STORAGE_KEY);
+    if (raw === null) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((p) => typeof p === 'string' && p.length > 0) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalRecents(paths) {
+  try {
+    localStorage.setItem(RECENTS_STORAGE_KEY, JSON.stringify(paths.slice(0, RECENTS_LIMIT)));
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+function RecentFiles({ recents, onOpen, onForget, onClearMissing, onClearAll }) {
   if (recents.length === 0) return null;
   const missingCount = recents.filter((r) => !r.exists).length;
 
@@ -86,14 +116,22 @@ function RecentFiles({ recents, onOpen, onForget, onClearMissing }) {
         h('h2', { class: 'recents-title' }, 'Recent files'),
         h('span', { class: 'recents-count' }, recents.length),
       ),
-      missingCount > 0 && onClearMissing && h('button', {
-        type: 'button',
-        class: 'recents-clear-missing',
-        onClick: onClearMissing,
-        title: `Remove ${missingCount} missing ${missingCount === 1 ? 'file' : 'files'} from list`,
-      }, `Clear missing (${missingCount})`),
+      h('div', { class: 'recents-header-actions' },
+        missingCount > 0 && onClearMissing && h('button', {
+          type: 'button',
+          class: 'recents-clear-missing',
+          onClick: onClearMissing,
+          title: `Remove ${missingCount} missing ${missingCount === 1 ? 'file' : 'files'} from list`,
+        }, `Clear missing (${missingCount})`),
+        onClearAll && h('button', {
+          type: 'button',
+          class: 'recents-clear-missing',
+          onClick: onClearAll,
+          title: 'Clear all recent files',
+        }, 'Clear all'),
+      ),
     ),
-    h('ul', { class: 'recents-list' },
+    h('ul', { class: 'recents-list' + (recents.length > 4 ? ' is-scrollable' : '') },
       recents.map((r) => {
         const name = basename(r.path);
         const dir = r.path.slice(0, Math.max(0, r.path.length - name.length - 1));
@@ -140,6 +178,7 @@ function ConfirmCloseDialog({
   cancelLabel = 'Cancel',
   cancelChoice = 2,
   discardLabel = 'Don’t save',
+  icon = 'warning',
   onResolve,
 }) {
   useEffect(() => {
@@ -168,15 +207,24 @@ function ConfirmCloseDialog({
       'aria-describedby': 'confirm-close-desc',
     },
       h('div', { class: 'confirm-header' },
-        h('span', { class: 'confirm-icon', 'aria-hidden': 'true' },
-          h('svg', {
-            width: '16', height: '16', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
-            'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
-          },
-            h('path', { d: 'M8 2.2 14.2 13H1.8L8 2.2Z' }),
-            h('line', { x1: '8', y1: '6.2', x2: '8', y2: '9.4' }),
-            h('circle', { cx: '8', cy: '11.3', r: '0.6', fill: 'currentColor', stroke: 'none' }),
-          ),
+        h('span', { class: 'confirm-icon' + (icon === 'new-tab' ? ' is-accent' : ''), 'aria-hidden': 'true' },
+          icon === 'new-tab'
+            ? h('svg', {
+              width: '16', height: '16', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+              'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+            },
+              h('path', { d: 'M3.5 2h6l3 3v9h-9V2Z' }),
+              h('path', { d: 'M9.5 2v3h3' }),
+              h('path', { d: 'M8 7.5v4M6 9.5h4' }),
+            )
+            : h('svg', {
+              width: '16', height: '16', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+              'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+            },
+              h('path', { d: 'M8 2.2 14.2 13H1.8L8 2.2Z' }),
+              h('line', { x1: '8', y1: '6.2', x2: '8', y2: '9.4' }),
+              h('circle', { cx: '8', cy: '11.3', r: '0.6', fill: 'currentColor', stroke: 'none' }),
+            ),
         ),
         h('div', { class: 'confirm-titles' },
           h('h2', { id: 'confirm-close-title', class: 'confirm-title' }, title),
@@ -474,7 +522,7 @@ function App() {
   }
 
   async function openPath(pathToOpen) {
-    const existing = stateRef.current.tabs.find((t) => t.path === pathToOpen);
+    const existing = stateRef.current.tabs.find((t) => samePath(t.path, pathToOpen));
     if (existing) { focusTab(existing.id); return; }
     setLoading(true);
     setNotice(null);
@@ -493,6 +541,7 @@ function App() {
       window.feathermark.setSettings('viewMode', 'preview-only');
     }
     await addTab(makeTab(pathToOpen, result.content));
+    recordLocalRecent(pathToOpen);
     refreshRecents();
   }
 
@@ -534,6 +583,7 @@ function App() {
         : t)));
       setSavedBeat(true);
       setTimeout(() => setSavedBeat(false), 1200);
+      if (result.path) recordLocalRecent(result.path);
       refreshRecents();
       takeSnapshot(); // persist immediately: a crash right after saving must not lose the new path
     } else if (!result.canceled) {
@@ -541,7 +591,7 @@ function App() {
     }
   }
 
-  function requestCloseConfirm({ title, description, primaryLabel, cancelLabel, cancelChoice, discardLabel }) {
+  function requestCloseConfirm({ title, description, primaryLabel, cancelLabel, cancelChoice, discardLabel, icon }) {
     return new Promise((resolve) => {
       setCloseConfirm({
         title,
@@ -550,12 +600,31 @@ function App() {
         cancelLabel,
         cancelChoice,
         discardLabel,
+        icon,
         resolve: (choice) => {
           setCloseConfirm(null);
           resolve(choice);
         },
       });
     });
+  }
+
+  async function promptNewTabAction() {
+    const choice = await requestCloseConfirm({
+      title: 'Add a new tab',
+      description: 'Create a blank document or open an existing Markdown file.',
+      primaryLabel: 'New file',
+      cancelLabel: 'Open file',
+      cancelChoice: 1,
+      discardLabel: null,
+      icon: 'new-tab',
+    });
+    if (choice === 0) {
+      await newFile();
+    } else if (choice === 1) {
+      const p = await window.feathermark.openFileDialog();
+      if (p) await openPath(p);
+    }
   }
 
   async function closeTab(tabId) {
@@ -732,21 +801,43 @@ function App() {
 
   // ---- recents ----
 
+  function recordLocalRecent(filePath) {
+    if (!filePath) return;
+    const current = loadLocalRecents() || [];
+    saveLocalRecents([filePath, ...current.filter((p) => !samePath(p, filePath))]);
+  }
+
   async function refreshRecents() {
-    setRecents(await window.feathermark.getRecent());
+    const mainRecents = await window.feathermark.getRecent();
+    saveLocalRecents(mainRecents.map((r) => r.path));
+    setRecents(mainRecents);
   }
 
   async function forgetRecent(pathToForget) {
+    const current = loadLocalRecents() || [];
+    saveLocalRecents(current.filter((p) => p !== pathToForget));
     await window.feathermark.forgetRecent(pathToForget);
     refreshRecents();
   }
 
   async function clearMissingRecents() {
     const missing = recents.filter((r) => !r.exists);
+    const missingSet = new Set(missing.map((r) => r.path));
+    const current = loadLocalRecents() || [];
+    saveLocalRecents(current.filter((p) => !missingSet.has(p)));
     for (const r of missing) {
       await window.feathermark.forgetRecent(r.path);
     }
     refreshRecents();
+  }
+
+  async function clearAllRecents() {
+    const paths = recents.map((r) => r.path);
+    saveLocalRecents([]);
+    setRecents([]);
+    for (const p of paths) {
+      await window.feathermark.forgetRecent(p);
+    }
   }
 
   function onRecentClick(r) {
@@ -761,9 +852,9 @@ function App() {
   // ---- effects: IPC wiring, once ----
 
   useEffect(() => {
+    let cancelled = false;
     const off = [];
     off.push(initTheme());
-    getThemePref().then(setPref);
 
     off.push(window.feathermark.onMenu((action) => {
       if (action === 'open-file') window.feathermark.openFileDialog().then((p) => p && openPath(p));
@@ -780,12 +871,6 @@ function App() {
       else if (action === 'redo') { if (editorHandleRef.current) editorHandleRef.current.redo(); }
     }));
 
-    window.feathermark.getSettings('viewMode', 'split').then((v) => {
-      if (VIEW_MODES.includes(v)) setViewMode(v);
-    });
-    window.feathermark.getSettings('outlineOpen', false).then((v) => setOutlineOpen(!!v));
-    window.feathermark.getSettings('toolbarOpen', false).then((v) => setToolbarOpen(!!v));
-    window.feathermark.getSettings('focusMode', false).then((v) => setFocusMode(!!v));
     // Always start split divider at center (0.5); never restore a saved ratio.
     setSplitRatio(0.5);
     window.feathermark.setSettings('splitRatio', 0.5);
@@ -821,21 +906,48 @@ function App() {
       });
     }));
 
-    refreshRecents();
-    restoreSession();
-    if (window.feathermark.getRecoveryNotice) {
-      window.feathermark.getRecoveryNotice().then((n) => {
-        if (n) {
-          setNotice({
-            tone: 'warning',
-            text: n.backupPath
-              ? 'Your settings file was corrupt and could not be read. FeatherMark saved a copy at ' + n.backupPath + ' and started with fresh settings. If your recent files or theme were lost, copy the values back from that file.'
-              : 'Your settings file was corrupt and could not be recovered to a copy. FeatherMark started with fresh settings.',
-          });
-        }
+    // Hydrate all initial state before showing the window so the first visible
+    // frame has the exact theme, mode pill, recents, and session with zero flash.
+    Promise.all([
+      initTheme.ready,
+      getThemePref().then((p) => { if (!cancelled) setPref(p); }),
+      window.feathermark.getSettings('viewMode', 'split').then((v) => {
+        if (!cancelled && VIEW_MODES.includes(v)) setViewMode(v);
+      }),
+      window.feathermark.getSettings('outlineOpen', false).then((v) => {
+        if (!cancelled) setOutlineOpen(!!v);
+      }),
+      window.feathermark.getSettings('toolbarOpen', false).then((v) => {
+        if (!cancelled) setToolbarOpen(!!v);
+      }),
+      window.feathermark.getSettings('focusMode', false).then((v) => {
+        if (!cancelled) setFocusMode(!!v);
+      }),
+      refreshRecents(),
+      restoreSession(),
+      window.feathermark.getRecoveryNotice
+        ? window.feathermark.getRecoveryNotice().then((n) => {
+            if (!cancelled && n) {
+              setNotice({
+                tone: 'warning',
+                text: n.backupPath
+                  ? 'Your settings file was corrupt and could not be read. FeatherMark saved a copy at ' + n.backupPath + ' and started with fresh settings. If your recent files or theme were lost, copy the values back from that file.'
+                  : 'Your settings file was corrupt and could not be recovered to a copy. FeatherMark started with fresh settings.',
+              });
+            }
+          })
+        : Promise.resolve(),
+    ]).finally(() => {
+      if (cancelled) return;
+      requestAnimationFrame(() => {
+        if (!cancelled && window.feathermark.appReady) window.feathermark.appReady();
       });
-    }
-    return () => { off.forEach((f) => f()); };
+    });
+
+    return () => {
+      cancelled = true;
+      off.forEach((f) => f());
+    };
   }, []);
 
   // Autosave session snapshot debounced on state change
@@ -980,7 +1092,7 @@ function App() {
         findOpen,
         toolbarOpen,
       }),
-      h(TabBar, { tabs, activeId, onSelect: focusTab, onClose: closeTab, onNew: newFile, onReorder: reorderTabs }),
+      h(TabBar, { tabs, activeId, onSelect: focusTab, onClose: closeTab, onNew: promptNewTabAction, onReorder: reorderTabs }),
       tabs.length > 0 && h(Toolbar, {
         isOpen: toolbarOpen,
         onAction: onToolbarAction,
@@ -994,7 +1106,7 @@ function App() {
             'stroke-width': '1.5', 'stroke-linecap': 'round', 'aria-hidden': 'true',
           }, h('path', { d: 'M4.5 4.5l7 7M11.5 4.5l-7 7' }))),
       ),
-      loading && h('div', { class: 'loading' }, h('span', { class: 'loading-bar', 'aria-label': 'Loading file' })),
+      loading && h('div', { class: 'loading', role: 'status' }, 'Opening file…'),
       tabs.length === 0 ? h('main', { class: 'empty' },
         h('div', { class: 'empty-shell' },
           h('div', { class: 'empty-hero' },
@@ -1002,8 +1114,8 @@ function App() {
               class: 'empty-logo',
               src: '../assets/icon.png',
               alt: '',
-              width: 112,
-              height: 112,
+              width: 96,
+              height: 96,
               draggable: false,
             }),
             h('p', { class: 'empty-hint' }, 'Open a file to start writing, or press Ctrl+O.'),
@@ -1020,7 +1132,13 @@ function App() {
               }, h(FilePlusIcon), h('span', null, 'New document')),
             ),
           ),
-          h(RecentFiles, { recents, onOpen: onRecentClick, onForget: forgetRecent, onClearMissing: clearMissingRecents }),
+          h(RecentFiles, {
+            recents,
+            onOpen: onRecentClick,
+            onForget: forgetRecent,
+            onClearMissing: clearMissingRecents,
+            onClearAll: clearAllRecents,
+          }),
         ),
       ) : h('div', { class: 'workspace-content' },
         h(Outline, {
@@ -1105,6 +1223,7 @@ function App() {
       cancelLabel: closeConfirm.cancelLabel,
       cancelChoice: closeConfirm.cancelChoice,
       discardLabel: closeConfirm.discardLabel,
+      icon: closeConfirm.icon,
       onResolve: closeConfirm.resolve,
     }),
     h('footer', {

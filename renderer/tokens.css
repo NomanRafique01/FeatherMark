@@ -65,27 +65,28 @@
   --danger: #D98278;
 }
 
-/* ================= Part 2 — Scales (phase 02) ================= */
+/* ================= Part 2 — Scales (dynamic-ui: fully fluid) ================= */
 
 :root {
-  /* Spacing: 4px base. Desktop app — panes resize via container queries (phase 04),
-     so layout gaps use fixed steps, not viewport-fluid vw. */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-12: 48px;
-  --space-16: 64px;
+  /* Spacing: 4px base. Use rem so that OS/browser font-size scaling carries
+     through. Values chosen for a 16px root so 1rem = 16px at 100% DPI. */
+  --space-1:  0.25rem;   /*  4px */
+  --space-2:  0.5rem;    /*  8px */
+  --space-3:  0.75rem;   /* 12px */
+  --space-4:  1rem;      /* 16px */
+  --space-6:  1.5rem;    /* 24px */
+  --space-8:  2rem;      /* 32px */
+  --space-12: 3rem;      /* 48px */
+  --space-16: 4rem;      /* 64px */
 
-  /* Type: Minor Third (1.2), five sizes ceiling. Fluid within a tight desktop range. */
-  --text-xs:  clamp(0.71rem, 0.70rem + 0.06vw, 0.75rem);   /* ~11.5–12px muted meta */
-  --text-sm:  clamp(0.76rem, 0.75rem + 0.08vw, 0.80rem);   /* ~12–12.8px UI chrome */
-  --text-editor: 13.5px;                                   /* crisp desktop monospace editor */
-  --text-base: clamp(0.88rem, 0.87rem + 0.10vw, 0.94rem);  /* ~14–15px prose body */
-  --text-lg:  clamp(1.09rem, 1.06rem + 0.20vw, 1.19rem);   /* ~18px section titles */
-  --text-xl:  clamp(1.32rem, 1.27rem + 0.32vw, 1.45rem);   /* ~22px app mark title */
+  /* Type: fluid clamped scale — scales with viewport from 768 → 1920px.
+     All values use rem so they ride the OS font-scale setting. */
+  --text-xs:   clamp(0.6875rem, 0.65rem + 0.2vw,  0.75rem);   /* 11–12px  muted meta */
+  --text-sm:   clamp(0.75rem,   0.72rem + 0.15vw,  0.8125rem); /* 12–13px  UI chrome  */
+  --text-editor: clamp(0.8125rem, 0.78rem + 0.17vw, 0.875rem); /* 13–14px  monospace editor (was fixed 13.5px) */
+  --text-base: clamp(0.875rem,  0.84rem + 0.19vw,  0.9375rem); /* 14–15px  prose body */
+  --text-lg:   clamp(1.0625rem, 1.0rem  + 0.33vw,  1.1875rem); /* 17–19px  section titles */
+  --text-xl:   clamp(1.25rem,   1.15rem + 0.52vw,  1.5rem);    /* 20–24px  app mark title */
 
   /* Fonts — decisions, not defaults (typography-master):
      UI = OS-native stack (a desktop tool should feel of the machine);

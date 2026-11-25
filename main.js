@@ -1,11 +1,25 @@
 // FeatherMark — Electron main process
 // Owns ALL filesystem access. Renderer talks only through preload.js (window.feathermark.*).
 
-const { app, BrowserWindow, Menu, dialog, nativeTheme, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, dialog, nativeTheme, ipcMain, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
 const settings = require('./store/settings');
+
+// Keep development/test data completely separate from installed-user data.
+// Production data stays in the normal per-app directory so upgrades retain
+// user state, while a source checkout cannot leak its state into an install.
+const appDataFolder = app.isPackaged ? 'FeatherMark' : 'FeatherMark-Development';
+const appUserData = path.join(app.getPath('appData'), appDataFolder);
+app.setPath('userData', appUserData);
+app.setAppUserModelId('com.feathermark.app');
+settings.configure(appUserData);
+
+const MARKDOWN_FILE_RE = /\.(md|markdown|mdown|mkdn|mkd|mdwn)$/i;
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+let pendingExternalFile = findMarkdownArgument(process.argv);
+let rendererReady = false;
 
 const THEME_BG = { light: '#F5F3ED', dark: '#20231F' }; // DESIGN_TOKENS.md --app-bg
 const FILE_FILTERS = [
@@ -21,6 +35,39 @@ function toThemeSource(pref) {
 }
 
 let mainWindow = null;
+
+function findMarkdownArgument(args) {
+  if (!Array.isArray(args)) return null;
+  for (const value of args) {
+    if (typeof value !== 'string' || value.startsWith('-')) continue;
+    const candidate = path.resolve(value);
+    if (MARKDOWN_FILE_RE.test(candidate) && fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function openExternalFile(filePath) {
+  if (!filePath) return;
+  pendingExternalFile = filePath;
+  if (!mainWindow || mainWindow.isDestroyed() || !rendererReady) return;
+  const nextPath = pendingExternalFile;
+  pendingExternalFile = null;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+  sendToRenderer('feathermark:drop-open', nextPath);
+}
+
+if (hasSingleInstanceLock) {
+  app.on('second-instance', (_event, commandLine) => {
+    openExternalFile(findMarkdownArgument(commandLine));
+  });
+  app.on('open-file', (event, filePath) => {
+    event.preventDefault();
+    openExternalFile(filePath);
+  });
+} else {
+  app.quit();
+}
 
 function effectiveTheme() {
   const pref = settings.get('theme', 'auto');
@@ -53,16 +100,62 @@ function refreshDirtyFlag() {
   sendToRenderer('feathermark:dirty-changed', dirtyTabs().length > 0);
 }
 
+// Clamp a window's bounds so it stays fully within the display it's on.
+// Called on restore so a saved position never ends up off-screen (e.g. after
+// moving to a monitor with different resolution or DPI).
+function clampBoundsToDisplay(bounds) {
+  // Find the display that contains the top-left corner of the window, falling
+  // back to the primary display if the point is not on any screen.
+  const display =
+    screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y });
+  const wa = display.workArea; // excludes taskbar
+  const w = Math.min(bounds.width,  wa.width);
+  const h = Math.min(bounds.height, wa.height);
+  const x = Math.max(wa.x, Math.min(bounds.x, wa.x + wa.width  - w));
+  const y = Math.max(wa.y, Math.min(bounds.y, wa.y + wa.height - h));
+  return { x, y, width: w, height: h };
+}
+
 function createWindow() {
+  rendererReady = false;
+  // Size the window as ~80% of the primary display's work area for normal/restored
+  // bounds, then honour whatever the user saved in settings.
+  const primaryWorkArea = screen.getPrimaryDisplay().workArea;
+  const defaultWidth  = Math.round(primaryWorkArea.width  * 0.80);
+  const defaultHeight = Math.round(primaryWorkArea.height * 0.80);
+
+  // Restore saved bounds if they exist; clamp to the current display so the
+  // window is never placed off-screen after a monitor change.
+  const savedBounds = settings.get('windowBounds', null);
+  const normalBounds = savedBounds
+    ? clampBoundsToDisplay(savedBounds)
+    : {
+        x: primaryWorkArea.x + Math.round((primaryWorkArea.width  - defaultWidth)  / 2),
+        y: primaryWorkArea.y + Math.round((primaryWorkArea.height - defaultHeight) / 2),
+        width:  defaultWidth,
+        height: defaultHeight,
+      };
+
+  // Start maximised on first launch (no savedBounds) or when last closed maximised.
+  // Crucially, create the BrowserWindow at the target display's full workArea size
+  // so Chromium's very first paint is already full-bleed — avoiding the Windows
+  // frameless-window lag where an 80%-sized surface briefly renders inside a
+  // maximised frame before snapping to full size.
+  const shouldStartMaximized = settings.get('windowMaximized', !savedBounds);
+  const targetWorkArea = screen.getDisplayNearestPoint({ x: normalBounds.x, y: normalBounds.y }).workArea;
+  const initialBounds = shouldStartMaximized ? targetWorkArea : normalBounds;
+
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    ...initialBounds,
+    // Minimum size: enough to show all chrome without clipping.
+    // 768px wide keeps the toolbar + tab bar readable; 500px tall fits
+    // the header + tab bar + 1 line of content + status bar comfortably.
     minWidth: 768,
-    minHeight: 480,
+    minHeight: 500,
     frame: false,
     backgroundColor: THEME_BG[effectiveTheme()],
     show: false,
-    icon: path.join(__dirname, 'assets', 'icon.png'),
+    icon: path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -71,12 +164,53 @@ function createWindow() {
     },
   });
 
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.maximize();
+  // If we created the window at targetWorkArea size so it paints full-bleed,
+  // restore to normalBounds the first time the user unmaximizes.
+  let pendingRestoreBounds = shouldStartMaximized ? normalBounds : null;
+
+  // Persist window bounds every time the user moves or resizes.
+  const saveBounds = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    // Don't save maximised/minimised state — restore a sensible normal size.
+    if (!mainWindow.isMaximized() && !mainWindow.isMinimized()) {
+      settings.set('windowBounds', mainWindow.getBounds());
+    }
+  };
+  mainWindow.on('resized', saveBounds);
+  mainWindow.on('moved',   saveBounds);
+  mainWindow.on('maximize', () => {
+    settings.set('windowMaximized', true);
+  });
+  mainWindow.on('unmaximize', () => {
+    settings.set('windowMaximized', false);
+    if (pendingRestoreBounds && mainWindow && !mainWindow.isDestroyed()) {
+      const restoreTo = pendingRestoreBounds;
+      pendingRestoreBounds = null;
+      mainWindow.setBounds(restoreTo);
+    }
+  });
+
+  let hasShown = false;
+
+  const showWhenReady = () => {
+    if (hasShown || !mainWindow || mainWindow.isDestroyed()) return;
+    hasShown = true;
+    clearTimeout(showFallbackTimer);
+    if (shouldStartMaximized) mainWindow.maximize();
     mainWindow.show();
     const notice = settings.takeRecoveryNotice();
     if (notice) sendToRenderer('feathermark:recovery-notice', notice);
+  };
+
+  // Showing is tied to the renderer's first paint, not async hydration. The
+  // renderer renders a real welcome surface immediately, so slow file recovery
+  // can never leave the user staring at a blank window.
+  const showFallbackTimer = setTimeout(showWhenReady, 1500);
+
+  mainWindow.once('ready-to-show', () => {
+    showWhenReady();
   });
+  mainWindow.webContents.once('did-finish-load', showWhenReady);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
   // Keep renderer startup failures visible when the window is blank. Electron's
@@ -333,6 +467,17 @@ ipcMain.handle('feathermark:window-control', (_e, action) => {
   return true;
 });
 
+ipcMain.on('feathermark:app-ready', (e) => {
+  if (mainWindow && !mainWindow.isDestroyed() && e.sender === mainWindow.webContents) {
+    rendererReady = true;
+    if (pendingExternalFile) {
+      const nextPath = pendingExternalFile;
+      pendingExternalFile = null;
+      sendToRenderer('feathermark:drop-open', nextPath);
+    }
+  }
+});
+
 // ---- Exit / Close: exactly one confirm flow, native, with Save all / Don’t save / Cancel ----
 // The renderer owns text, so "Save all" asks it to flush every dirty tab, then quits
 // when the renderer reports done. Cancel returns to the editor with everything intact.
@@ -540,15 +685,18 @@ function buildMenu() {
   ]);
 }
 
-app.whenReady().then(() => {
-  nativeTheme.themeSource = toThemeSource(settings.get('theme', 'auto'));
-  Menu.setApplicationMenu(null);
-  createWindow();
+if (hasSingleInstanceLock) {
+  app.whenReady().then(() => {
+    settings.initFirstRun(app.getVersion());
+    nativeTheme.themeSource = toThemeSource(settings.get('theme', 'auto'));
+    Menu.setApplicationMenu(null);
+    createWindow();
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
   });
-});
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
