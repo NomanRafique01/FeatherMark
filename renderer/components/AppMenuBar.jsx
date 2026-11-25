@@ -222,7 +222,19 @@ function ModeToggle({ value, onChange }) {
   );
 }
 
-export function AppMenuBar({ mode, onModeChange, themePref, onThemeChange, onMenuAction }) {
+function FindIcon() {
+  return h('svg', {
+    width: '15', height: '15', viewBox: '0 0 16 16',
+    fill: 'none', stroke: 'currentColor',
+    'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+    'aria-hidden': 'true',
+  },
+    h('circle', { cx: '7', cy: '7', r: '4.5' }),
+    h('line', { x1: '10.3', y1: '10.3', x2: '13.5', y2: '13.5' }),
+  );
+}
+
+export function AppMenuBar({ mode, onModeChange, themePref, onThemeChange, onMenuAction, findOpen }) {
   const [openMenu, setOpenMenu] = useState(null);
   const navRef = useRef(null);
 
@@ -277,6 +289,15 @@ export function AppMenuBar({ mode, onModeChange, themePref, onThemeChange, onMen
     ),
     h('div', { class: 'app-menu-bar' },
       h('div', { class: 'app-menu-spacer' }),
+      h('button', {
+        type: 'button',
+        class: 'find-toggle-chrome-btn' + (findOpen ? ' is-active' : ''),
+        'aria-pressed': String(!!findOpen),
+        title: 'Find and replace (Ctrl+F)',
+        'aria-label': 'Find and replace',
+        onClick: () => onMenuAction && onMenuAction('find-replace'),
+      }, h(FindIcon)),
+      h('span', { class: 'app-menu-divider', 'aria-hidden': 'true' }),
       h(ThemeToggle, { value: themePref, onChange: onThemeChange }),
       h(ModeToggle, { value: mode, onChange: onModeChange }),
     ),

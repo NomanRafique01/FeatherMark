@@ -38,28 +38,95 @@ function makeTab(path, text) {
 
 // ---- Recents (empty state) ----
 
-function RecentFiles({ recents, onOpen, onForget }) {
+function EmptyIcon({ size = 16, children }) {
+  return h('svg', {
+    width: String(size), height: String(size), viewBox: '0 0 16 16', fill: 'none',
+    stroke: 'currentColor', 'stroke-width': '1.4', 'stroke-linecap': 'round',
+    'stroke-linejoin': 'round', 'aria-hidden': 'true',
+  }, children);
+}
+
+const FolderOpenIcon = () => h(EmptyIcon, { size: 15 },
+  h('path', { d: 'M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.3 1.5h4.7A1.5 1.5 0 0 1 14 6v1.5' }),
+  h('path', { d: 'M2 7.5h12l-1.1 5a1.2 1.2 0 0 1-1.2 1H4.3a1.2 1.2 0 0 1-1.2-1L2 7.5Z' }),
+);
+
+const FilePlusIcon = () => h(EmptyIcon, { size: 15 },
+  h('path', { d: 'M3.5 2h6l3 3v9h-9V2Z' }),
+  h('path', { d: 'M9.5 2v3h3' }),
+  h('path', { d: 'M8 7.5v4M6 9.5h4' }),
+);
+
+const ClockIcon = () => h(EmptyIcon, { size: 14 },
+  h('circle', { cx: '8', cy: '8', r: '6' }),
+  h('path', { d: 'M8 4.8V8l2.2 1.4' }),
+);
+
+const RecentDocIcon = () => h(EmptyIcon, { size: 16 },
+  h('path', { d: 'M3.5 2h6l3 3v9h-9V2Z' }),
+  h('path', { d: 'M9.5 2v3h3' }),
+  h('path', { d: 'M5.5 8h5M5.5 10.5h3.5' }),
+);
+
+const MissingDocIcon = () => h(EmptyIcon, { size: 16 },
+  h('path', { d: 'M3.5 2h6l3 3v9h-9V2Z' }),
+  h('path', { d: 'M9.5 2v3h3' }),
+  h('path', { d: 'M8 6.8v3.2' }),
+  h('circle', { cx: '8', cy: '11.8', r: '0.5', fill: 'currentColor', stroke: 'none' }),
+);
+
+function RecentFiles({ recents, onOpen, onForget, onClearMissing }) {
   if (recents.length === 0) return null;
-  return h('section', { class: 'recents' },
-    h('h2', { class: 'recents-title' }, 'Recent files'),
+  const missingCount = recents.filter((r) => !r.exists).length;
+
+  return h('section', { class: 'recents', 'aria-label': 'Recent files' },
+    h('div', { class: 'recents-header' },
+      h('div', { class: 'recents-heading' },
+        h('span', { class: 'recents-heading-icon' }, h(ClockIcon)),
+        h('h2', { class: 'recents-title' }, 'Recent files'),
+        h('span', { class: 'recents-count' }, recents.length),
+      ),
+      missingCount > 0 && onClearMissing && h('button', {
+        type: 'button',
+        class: 'recents-clear-missing',
+        onClick: onClearMissing,
+        title: `Remove ${missingCount} missing ${missingCount === 1 ? 'file' : 'files'} from list`,
+      }, `Clear missing (${missingCount})`),
+    ),
     h('ul', { class: 'recents-list' },
-      recents.map((r) => h('li', { key: r.path, class: 'recents-item' + (r.exists ? '' : ' is-missing') },
-        h('button', {
-          class: 'recents-open',
-          onClick: () => onOpen(r),
-        },
-          h('span', { class: 'recents-name' }, basename(r.path)),
-          h('span', { class: 'recents-dir' }, r.path.slice(0, r.path.length - basename(r.path).length - 1)),
-          !r.exists && h('span', { class: 'recents-flag' }, 'missing'),
-        ),
-        h('button', {
-          class: 'recents-forget', 'aria-label': 'Remove from recent files',
-          onClick: () => onForget(r.path),
-        }, h('svg', {
-          width: '11', height: '11', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
-          'stroke-width': '1.5', 'stroke-linecap': 'round', 'aria-hidden': 'true',
-        }, h('path', { d: 'M4.5 4.5l7 7M11.5 4.5l-7 7' }))),
-      )),
+      recents.map((r) => {
+        const name = basename(r.path);
+        const dir = r.path.slice(0, Math.max(0, r.path.length - name.length - 1));
+        return h('li', { key: r.path, class: 'recents-item' + (r.exists ? '' : ' is-missing') },
+          h('button', {
+            type: 'button',
+            class: 'recents-open',
+            title: r.path,
+            onClick: () => onOpen(r),
+          },
+            h('span', { class: 'recents-icon', 'aria-hidden': 'true' },
+              r.exists ? h(RecentDocIcon) : h(MissingDocIcon),
+            ),
+            h('span', { class: 'recents-meta' },
+              h('span', { class: 'recents-row-top' },
+                h('span', { class: 'recents-name' }, name),
+                !r.exists && h('span', { class: 'recents-flag' }, 'Missing'),
+              ),
+              dir && h('span', { class: 'recents-dir' }, dir),
+            ),
+          ),
+          h('button', {
+            type: 'button',
+            class: 'recents-forget',
+            'aria-label': `Remove ${name} from recent files`,
+            title: 'Remove from recent files',
+            onClick: () => onForget(r.path),
+          }, h('svg', {
+            width: '12', height: '12', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+            'stroke-width': '1.5', 'stroke-linecap': 'round', 'aria-hidden': 'true',
+          }, h('path', { d: 'M4.5 4.5l7 7M11.5 4.5l-7 7' }))),
+        );
+      }),
     ),
   );
 }
@@ -158,6 +225,10 @@ function App() {
   const [splitRatio, setSplitRatio] = useState(0.5);
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
   const panesContainerRef = useRef(null);
+
+  // Fire once: switch to preview-only on the very first file open of a fresh session.
+  // After that the user owns the mode; this never triggers again.
+  const firstOpenRef = useRef(true);
 
   const [recents, setRecents] = useState([]);
   const [notice, setNotice] = useState(null); // recovery/error banner, dismissible
@@ -399,6 +470,13 @@ function App() {
       setNotice({ text: result.error, tone: 'danger', path: pathToOpen });
       refreshRecents();
       return;
+    }
+    // First file opened on a fresh session → switch to preview so the user
+    // sees their document rendered. After this the user owns the mode.
+    if (firstOpenRef.current && stateRef.current.tabs.length === 0) {
+      firstOpenRef.current = false;
+      setViewMode('preview-only');
+      window.feathermark.setSettings('viewMode', 'preview-only');
     }
     await addTab(makeTab(pathToOpen, result.content));
     refreshRecents();
@@ -645,6 +723,14 @@ function App() {
     refreshRecents();
   }
 
+  async function clearMissingRecents() {
+    const missing = recents.filter((r) => !r.exists);
+    for (const r of missing) {
+      await window.feathermark.forgetRecent(r.path);
+    }
+    refreshRecents();
+  }
+
   function onRecentClick(r) {
     if (r.exists) return openPath(r.path);
     // explain, never fail silently (copy rules: what went wrong + the fix)
@@ -680,9 +766,9 @@ function App() {
     window.feathermark.getSettings('outlineOpen', false).then((v) => setOutlineOpen(!!v));
     window.feathermark.getSettings('toolbarOpen', false).then((v) => setToolbarOpen(!!v));
     window.feathermark.getSettings('focusMode', false).then((v) => setFocusMode(!!v));
-    window.feathermark.getSettings('splitRatio', 0.5).then((r) => {
-      if (typeof r === 'number' && r >= 0.2 && r <= 0.8) setSplitRatio(r);
-    });
+    // Always start split divider at center (0.5); never restore a saved ratio.
+    setSplitRatio(0.5);
+    window.feathermark.setSettings('splitRatio', 0.5);
 
     off.push(window.feathermark.onDropOpen((p) => openPath(p)));
     off.push(window.feathermark.onSnapshotRequest(() => takeSnapshot()));
@@ -847,23 +933,13 @@ function App() {
         themePref: pref,
         onThemeChange: (p) => setThemePref(p).then(setPref),
         onMenuAction: runChromeMenuAction,
+        findOpen,
       }),
       h(TabBar, { tabs, activeId, onSelect: focusTab, onClose: closeTab, onNew: newFile, onReorder: reorderTabs }),
       tabs.length > 0 && h(Toolbar, {
         isOpen: toolbarOpen,
         onAction: onToolbarAction,
         onClose: () => toggleToolbar(),
-      }),
-      tabs.length > 0 && h(FindReplace, {
-        isOpen: findOpen,
-        matchesCount,
-        currentIndex: matchIndex,
-        onSearchChange,
-        onFindNext,
-        onFindPrev,
-        onReplace,
-        onReplaceAll,
-        onClose: onCloseFind,
       }),
       notice && h('div', { class: 'notice notice-' + notice.tone, role: 'alert' },
         h('span', {}, notice.text),
@@ -875,9 +951,24 @@ function App() {
       ),
       loading && h('div', { class: 'loading' }, h('span', { class: 'loading-bar', 'aria-label': 'Loading file' })),
       tabs.length === 0 ? h('main', { class: 'empty' },
-        h('p', { class: 'empty-hint' }, 'Open a file to start writing, or press Ctrl+O.'),
-        h('button', { class: 'empty-action', onClick: () => window.feathermark.openFileDialog().then((p) => p && openPath(p)) }, 'Open a file'),
-        h(RecentFiles, { recents, onOpen: onRecentClick, onForget: forgetRecent }),
+        h('div', { class: 'empty-shell' },
+          h('div', { class: 'empty-hero' },
+            h('p', { class: 'empty-hint' }, 'Open a file to start writing, or press Ctrl+O.'),
+            h('div', { class: 'empty-actions' },
+              h('button', {
+                type: 'button',
+                class: 'empty-action',
+                onClick: () => window.feathermark.openFileDialog().then((p) => p && openPath(p)),
+              }, h(FolderOpenIcon), h('span', null, 'Open a file')),
+              h('button', {
+                type: 'button',
+                class: 'empty-action-secondary',
+                onClick: newFile,
+              }, h(FilePlusIcon), h('span', null, 'New document')),
+            ),
+          ),
+          h(RecentFiles, { recents, onOpen: onRecentClick, onForget: forgetRecent, onClearMissing: clearMissingRecents }),
+        ),
       ) : h('div', { class: 'workspace-content' },
         h(Outline, {
           text: active ? active.text : '',
@@ -893,6 +984,17 @@ function App() {
             onWheel: () => { activeScrollerRef.current = 'editor'; },
             style: viewMode === 'split' ? { flex: `0 0 calc(${splitRatio * 100}% - 2.5px)`, width: `calc(${splitRatio * 100}% - 2.5px)` } : undefined,
           },
+            h(FindReplace, {
+              isOpen: findOpen,
+              matchesCount,
+              currentIndex: matchIndex,
+              onSearchChange,
+              onFindNext,
+              onFindPrev,
+              onReplace,
+              onReplaceAll,
+              onClose: onCloseFind,
+            }),
             h(Editor, {
               key: active.id,
               tabId: active.id,

@@ -72,6 +72,7 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
+    mainWindow.maximize();
     mainWindow.show();
     const notice = settings.takeRecoveryNotice();
     if (notice) sendToRenderer('feathermark:recovery-notice', notice);
