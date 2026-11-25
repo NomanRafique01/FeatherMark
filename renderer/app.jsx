@@ -221,6 +221,7 @@ function App() {
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1, selectionLength: 0 });
   const [matchesCount, setMatchesCount] = useState(0);
   const [matchIndex, setMatchIndex] = useState(0);
+  const [searchState, setSearchState] = useState({ query: '', caseSensitive: false, wholeWord: false });
 
   const [splitRatio, setSplitRatio] = useState(0.5);
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
@@ -326,6 +327,7 @@ function App() {
   }
 
   function onSearchChange(query, opts) {
+    setSearchState({ query, caseSensitive: !!opts?.caseSensitive, wholeWord: !!opts?.wholeWord });
     if (editorHandleRef.current) {
       const count = editorHandleRef.current.setSearch(query, opts);
       setMatchesCount(count);
@@ -425,6 +427,7 @@ function App() {
 
   function onCloseFind() {
     setFindOpen(false);
+    setSearchState({ query: '', caseSensitive: false, wholeWord: false });
     if (editorHandleRef.current) {
       editorHandleRef.current.clearSearch();
       editorHandleRef.current.focus();
@@ -997,23 +1000,23 @@ function App() {
           onClose: () => toggleOutline(),
         }),
         h('main', { ref: panesContainerRef, class: 'workspace-panes is-' + viewMode },
+          active && h(FindReplace, {
+            isOpen: findOpen,
+            matchesCount,
+            currentIndex: matchIndex,
+            onSearchChange,
+            onFindNext,
+            onFindPrev,
+            onReplace,
+            onReplaceAll,
+            onClose: onCloseFind,
+          }),
           active && h('div', {
             class: 'editor-surface',
             onMouseEnter: () => { activeScrollerRef.current = 'editor'; },
             onWheel: () => { activeScrollerRef.current = 'editor'; },
             style: viewMode === 'split' ? { flex: `0 0 calc(${splitRatio * 100}% - 2.5px)`, width: `calc(${splitRatio * 100}% - 2.5px)` } : undefined,
           },
-            h(FindReplace, {
-              isOpen: findOpen,
-              matchesCount,
-              currentIndex: matchIndex,
-              onSearchChange,
-              onFindNext,
-              onFindPrev,
-              onReplace,
-              onReplaceAll,
-              onClose: onCloseFind,
-            }),
             h(Editor, {
               key: active.id,
               tabId: active.id,
@@ -1053,6 +1056,8 @@ function App() {
               onScrollChange: onPreviewScrollChange,
               onPreviewScroll: onPreviewScroll,
               previewHandleRef: previewHandleRef,
+              searchQuery: findOpen ? searchState.query : '',
+              searchOpts: searchState,
             })
           ),
         ),

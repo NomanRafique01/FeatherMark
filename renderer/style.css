@@ -1125,9 +1125,14 @@ button {
 }
 
 .cm-searchMatch-selected {
-  background-color: var(--accent-soft) !important;
-  outline: 1.5px solid var(--accent);
+  background-color: rgba(232, 144, 90, 0.38) !important;
+  outline: 1.5px solid var(--warning);
   border-radius: 2px;
+}
+
+::highlight(fm-search-match) {
+  background-color: var(--search-highlight);
+  color: var(--text-primary);
 }
 
 /* ---- Focus Mode (Phase 06) ---- */
@@ -1247,6 +1252,7 @@ button {
 }
 
 .workspace-panes {
+  position: relative;
   display: flex;
   flex: 1 1 0px;
   min-height: 0;

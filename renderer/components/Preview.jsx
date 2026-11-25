@@ -109,6 +109,8 @@ export function Preview({
   onScrollChange,
   onPreviewScroll,
   previewHandleRef,
+  searchQuery = '',
+  searchOpts = {},
 }) {
   const containerRef = useRef(null);
   const proseRef = useRef(null);
@@ -239,6 +241,54 @@ export function Preview({
 
     return () => clearTimeout(timer);
   }, [text]);
+
+  // Highlight search matches in rendered preview using CSS Custom Highlight API
+  useEffect(() => {
+    if (typeof CSS === 'undefined' || !CSS.highlights || typeof Highlight === 'undefined') return;
+    const prose = proseRef.current;
+    if (!prose || !searchQuery) {
+      CSS.highlights.delete('fm-search-match');
+      return;
+    }
+
+    const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = searchOpts?.wholeWord ? `\\b${escaped}\\b` : escaped;
+    const flags = searchOpts?.caseSensitive ? 'g' : 'gi';
+    let regex;
+    try {
+      regex = new RegExp(pattern, flags);
+    } catch {
+      CSS.highlights.delete('fm-search-match');
+      return;
+    }
+
+    const ranges = [];
+    const walker = document.createTreeWalker(prose, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const val = node.nodeValue;
+      if (!val) continue;
+      regex.lastIndex = 0;
+      let match;
+      while ((match = regex.exec(val)) !== null) {
+        if (match[0].length === 0) break;
+        const range = new Range();
+        range.setStart(node, match.index);
+        range.setEnd(node, match.index + match[0].length);
+        ranges.push(range);
+      }
+    }
+
+    if (ranges.length > 0) {
+      CSS.highlights.set('fm-search-match', new Highlight(...ranges));
+    } else {
+      CSS.highlights.delete('fm-search-match');
+    }
+
+    return () => {
+      CSS.highlights.delete('fm-search-match');
+    };
+  }, [searchQuery, searchOpts?.caseSensitive, searchOpts?.wholeWord, text]);
 
   // Immediate render on mount (innerHTML, no morph needed — DOM is empty)
   useEffect(() => {

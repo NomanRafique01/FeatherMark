@@ -95,11 +95,7 @@ export function FindReplace({
     }
   };
 
-  const hasQuery  = query.length > 0;
-  const noMatch   = hasQuery && matchesCount === 0;
-  const countLabel = !hasQuery ? '' :
-    matchesCount > 999  ? '>999' :
-    matchesCount > 0    ? `${currentIndex + 1}/${matchesCount}` : '0';
+  const hasQuery = query.length > 0;
 
   return h('div', {
     class: 'find-panel',
@@ -127,7 +123,7 @@ export function FindReplace({
       )),
 
       /* search input */
-      h('div', { class: 'find-input-wrap' + (noMatch ? ' is-no-match' : '') },
+      h('div', { class: 'find-input-wrap' },
         h('span', { class: 'find-search-icon', 'aria-hidden': 'true' }, h(SearchIcon)),
         h('textarea', {
           ref: findInputRef,
@@ -145,11 +141,6 @@ export function FindReplace({
           },
           onKeyDown: handleFindKeyDown,
         }),
-        hasQuery && h('span', {
-          class: 'find-count' + (noMatch ? ' is-zero' : ''),
-          'aria-live': 'polite',
-          'aria-atomic': 'true',
-        }, countLabel),
       ),
 
       /* case / word toggles */
