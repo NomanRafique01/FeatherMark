@@ -10,11 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/NomanRafique01/FeatherMark/releases/latest">
-    <img src="https://img.shields.io/github/v/release/NomanRafique01/FeatherMark?style=flat-square&color=587858" alt="Latest release" />
-  </a>
   <a href="https://github.com/NomanRafique01/FeatherMark/releases">
-    <img src="https://img.shields.io/github/downloads/NomanRafique01/FeatherMark/total?style=flat-square&label=installer%20downloads&color=426439" alt="Total installer downloads" />
+    <img src="https://img.shields.io/github/downloads/NomanRafique01/FeatherMark/total?style=flat-square&label=total%20installs&color=426439" alt="Total FeatherMark installer downloads" />
   </a>
   <img src="https://img.shields.io/badge/platform-Windows%20x64-0078d4?style=flat-square&logo=windows&logoColor=white" alt="Platform: Windows x64" />
   <img src="https://img.shields.io/badge/Electron-desktop-47848f?style=flat-square&logo=electron&logoColor=white" alt="Electron desktop app" />
