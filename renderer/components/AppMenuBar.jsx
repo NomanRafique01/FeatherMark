@@ -3,7 +3,8 @@
 // Row 3 Layout: [flex spacer] [Theme toggle group] [gap 10px] [Mode toggle group] (all right-aligned)
 
 import { h, Fragment } from 'preact';
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { ThemeToggle, useSlidingPill } from './ThemeToggle.jsx';
 
 const MENUS = {
   File: [
@@ -24,58 +25,6 @@ const MENUS = {
     ['About FeatherMark', 'about'],
   ],
 };
-
-function ThemeIcon({ name }) {
-  if (name === 'dark') {
-    return h('svg', {
-      width: '16',
-      height: '16',
-      viewBox: '0 0 16 16',
-      fill: 'currentColor',
-      stroke: 'none',
-      style: { transform: 'rotate(15deg)' },
-      'aria-hidden': 'true',
-    },
-      h('path', { d: 'M 11 3.5 A 5.5 5.5 0 1 0 11 12.5 A 4 4 0 1 1 11 3.5 Z' }),
-    );
-  }
-
-  const common = {
-    width: '16',
-    height: '16',
-    viewBox: '0 0 16 16',
-    fill: 'none',
-    stroke: 'currentColor',
-    'stroke-width': '1.5',
-    'stroke-linecap': 'round',
-    'stroke-linejoin': 'round',
-    'aria-hidden': 'true',
-  };
-
-  if (name === 'light') {
-    return h('svg', common,
-      h('circle', { cx: '8', cy: '8', r: '3' }),
-      // Long rays (N/E/S/W): 1px gap from r=3 -> start at r=4, length 2.5px -> end at r=6.5
-      h('line', { x1: '8', y1: '4', x2: '8', y2: '1.5' }),
-      h('line', { x1: '12', y1: '8', x2: '14.5', y2: '8' }),
-      h('line', { x1: '8', y1: '12', x2: '8', y2: '14.5' }),
-      h('line', { x1: '4', y1: '8', x2: '1.5', y2: '8' }),
-      // Short rays (NE/SE/SW/NW): 1px gap from r=3 -> start at r=4, length 1.8px -> end at r=5.8
-      h('line', { x1: '10.83', y1: '5.17', x2: '12.10', y2: '3.90' }),
-      h('line', { x1: '10.83', y1: '10.83', x2: '12.10', y2: '12.10' }),
-      h('line', { x1: '5.17', y1: '10.83', x2: '3.90', y2: '12.10' }),
-      h('line', { x1: '5.17', y1: '5.17', x2: '3.90', y2: '3.90' }),
-    );
-  }
-
-  // system (Monitor)
-  return h('svg', common,
-    h('rect', { x: '2', y: '3', width: '12', height: '8', rx: '1.5' }),
-    h('line', { x1: '8', y1: '11', x2: '8', y2: '13.5' }),
-    h('line', { x1: '5.5', y1: '13.5', x2: '10.5', y2: '13.5' }),
-    h('line', { x1: '4', y1: '9', x2: '12', y2: '9', opacity: '0.4' }),
-  );
-}
 
 function ModeIcon({ name }) {
   const common = {
@@ -136,59 +85,6 @@ function ModeIcon({ name }) {
   );
 }
 
-function useSlidingPill(value) {
-  const containerRef = useRef(null);
-  const pillRef = useRef(null);
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const pill = pillRef.current;
-    if (!container || !pill) return undefined;
-
-    const syncPill = () => {
-      const activeBtn = container.querySelector('[aria-pressed="true"]');
-      if (!activeBtn) return;
-      const padLeft = parseFloat(getComputedStyle(container).paddingLeft) || 0;
-      pill.style.transform = `translateX(${activeBtn.offsetLeft - padLeft}px)`;
-      pill.style.width = `${activeBtn.offsetWidth}px`;
-    };
-
-    syncPill();
-    const observer = new ResizeObserver(syncPill);
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [value]);
-
-  return { containerRef, pillRef };
-}
-
-function ThemeToggle({ value, onChange }) {
-  const { containerRef, pillRef } = useSlidingPill(value);
-  const options = [
-    { value: 'auto', label: 'Follow system theme', icon: 'system' },
-    { value: 'light', label: 'Use light theme', icon: 'light' },
-    { value: 'dark', label: 'Use dark theme', icon: 'dark' },
-  ];
-
-  return h('div', {
-    ref: containerRef,
-    class: 'theme-segmented',
-    role: 'group',
-    'aria-label': 'Color theme',
-  },
-    h('span', { ref: pillRef, class: 'theme-segment-pill', 'aria-hidden': 'true' }),
-    options.map((option) => h('button', {
-      key: option.value,
-      type: 'button',
-      class: 'theme-segment is-' + option.value,
-      'aria-pressed': String(value === option.value),
-      'aria-label': option.label,
-      title: option.label,
-      onClick: () => onChange(option.value),
-    }, h(ThemeIcon, { name: option.icon }))),
-  );
-}
-
 function ModeToggle({ value, onChange }) {
   const { containerRef, pillRef } = useSlidingPill(value);
 
@@ -233,7 +129,21 @@ function FindIcon() {
   );
 }
 
-export function AppMenuBar({ mode, onModeChange, themePref, onThemeChange, onMenuAction, findOpen }) {
+function ToolbarIcon() {
+  return h('svg', {
+    width: '17', height: '17', viewBox: '0 0 16 16',
+    fill: 'none', stroke: 'currentColor',
+    'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+    'aria-hidden': 'true',
+  },
+    h('path', { d: 'M2.5 3.5h6M5.5 3.5v9M4 12.5h3' }),
+    h('line', { x1: '10', y1: '4.5', x2: '13.5', y2: '4.5' }),
+    h('line', { x1: '10', y1: '8', x2: '13.5', y2: '8' }),
+    h('line', { x1: '10', y1: '11.5', x2: '12.5', y2: '11.5' }),
+  );
+}
+
+export function AppMenuBar({ mode, onModeChange, themePref, onThemeChange, onMenuAction, findOpen, toolbarOpen }) {
   const [openMenu, setOpenMenu] = useState(null);
   const navRef = useRef(null);
 
@@ -290,7 +200,15 @@ export function AppMenuBar({ mode, onModeChange, themePref, onThemeChange, onMen
       h('div', { class: 'app-menu-spacer' }),
       h('button', {
         type: 'button',
-        class: 'find-toggle-chrome-btn' + (findOpen ? ' is-active' : ''),
+        class: 'chrome-icon-btn toolbar-toggle-chrome-btn' + (toolbarOpen ? ' is-active' : ''),
+        'aria-pressed': String(!!toolbarOpen),
+        title: 'Toggle formatting toolbar (Alt+T)',
+        'aria-label': 'Toggle formatting toolbar',
+        onClick: () => onMenuAction && onMenuAction('toggle-toolbar'),
+      }, h(ToolbarIcon)),
+      h('button', {
+        type: 'button',
+        class: 'chrome-icon-btn find-toggle-chrome-btn' + (findOpen ? ' is-active' : ''),
         'aria-pressed': String(!!findOpen),
         title: 'Find and replace (Ctrl+F)',
         'aria-label': 'Find and replace',

@@ -40,6 +40,13 @@ export function FindReplace({
   const [wholeWord, setWholeWord]       = useState(false);
   const [showReplace, setShowReplace]   = useState(false);
   const findInputRef = useRef(null);
+  const replaceInputRef = useRef(null);
+
+  const syncTextareaHeight = (el) => {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 96) + 'px';
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -47,12 +54,21 @@ export function FindReplace({
         if (findInputRef.current) {
           findInputRef.current.focus();
           findInputRef.current.select();
+          syncTextareaHeight(findInputRef.current);
         }
       }, 40);
     } else {
       setShowReplace(false);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    syncTextareaHeight(findInputRef.current);
+  }, [query]);
+
+  useEffect(() => {
+    syncTextareaHeight(replaceInputRef.current);
+  }, [replaceText, showReplace]);
 
   useEffect(() => {
     if (isOpen && onSearchChange) {
@@ -113,16 +129,20 @@ export function FindReplace({
       /* search input */
       h('div', { class: 'find-input-wrap' + (noMatch ? ' is-no-match' : '') },
         h('span', { class: 'find-search-icon', 'aria-hidden': 'true' }, h(SearchIcon)),
-        h('input', {
+        h('textarea', {
           ref: findInputRef,
           class: 'find-input',
-          type: 'text',
+          rows: 1,
           placeholder: 'Find',
           spellcheck: false,
           autocomplete: 'off',
           'aria-label': 'Find text',
           value: query,
-          onInput: (e) => setQuery(e.target.value),
+          onInput: (e) => {
+            const clean = e.target.value.replace(/\r?\n/g, ' ');
+            setQuery(clean);
+            syncTextareaHeight(e.target);
+          },
           onKeyDown: handleFindKeyDown,
         }),
         hasQuery && h('span', {
@@ -194,12 +214,20 @@ export function FindReplace({
     showReplace && h('div', { class: 'find-panel-row find-replace-row' },
       h('span', { class: 'find-expand-spacer', 'aria-hidden': 'true' }),
       h('div', { class: 'find-input-wrap' },
-        h('input', {
+        h('textarea', {
+          ref: replaceInputRef,
           class: 'find-input',
-          type: 'text', placeholder: 'Replace', spellcheck: false, autocomplete: 'off',
+          rows: 1,
+          placeholder: 'Replace',
+          spellcheck: false,
+          autocomplete: 'off',
           'aria-label': 'Replace text',
           value: replaceText,
-          onInput: (e) => setReplaceText(e.target.value),
+          onInput: (e) => {
+            const clean = e.target.value.replace(/\r?\n/g, ' ');
+            setReplaceText(clean);
+            syncTextareaHeight(e.target);
+          },
           onKeyDown: handleReplaceKeyDown,
         }),
       ),

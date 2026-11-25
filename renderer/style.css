@@ -409,34 +409,49 @@ button {
   letter-spacing: 0.005em;
 }
 
-/* ---- Find toggle button in toolbar bar ---- */
+/* ---- Chrome icon toggle buttons (Toolbar / Find) ---- */
 
+.chrome-icon-btn,
 .find-toggle-chrome-btn {
   flex: none;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-control);
   color: var(--text-secondary);
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast), transform 80ms ease;
 }
 
+.chrome-icon-btn svg,
 .find-toggle-chrome-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
+.toolbar-toggle-chrome-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.chrome-icon-btn:hover,
 .find-toggle-chrome-btn:hover {
   background: var(--bg-btn-hover);
   color: var(--text-primary);
 }
 
+.chrome-icon-btn:active,
+.find-toggle-chrome-btn:active {
+  transform: scale(0.95);
+}
+
+.chrome-icon-btn.is-active,
 .find-toggle-chrome-btn.is-active {
   background: var(--accent-soft);
   color: var(--accent);
 }
 
+.chrome-icon-btn:focus-visible,
 .find-toggle-chrome-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -793,28 +808,31 @@ button {
 
 .editor-toolbar {
   flex: 0 0 auto;
-  height: 32px;
-  min-height: 32px;
+  height: 38px;
+  min-height: 38px;
   background: var(--sidebar-bg);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 0 var(--space-2);
+  gap: 4px;
+  padding: 0 var(--space-4);
   overflow-x: auto;
   user-select: none;
+  transition: background-color 400ms cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 400ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .toolbar-btn {
-  width: 26px;
-  height: 26px;
+  flex: none;
+  width: 32px;
+  height: 30px;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-control);
+  border-radius: 5px;
   color: var(--toolbar-icon);
   font-size: var(--text-xs);
   line-height: 1;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast), transform 80ms ease;
 }
 
 .toolbar-btn:hover {
@@ -822,31 +840,43 @@ button {
   color: var(--text-primary);
 }
 
+.toolbar-btn:active {
+  transform: scale(0.94);
+}
+
 .toolbar-btn:focus-visible {
   outline: 2px solid var(--accent);
+  outline-offset: -1px;
 }
 
 .toolbar-sep {
+  flex: none;
   width: 1px;
-  height: 16px;
+  height: 18px;
   background: var(--border);
-  margin: 0 var(--space-1);
+  margin: 0 var(--space-2);
 }
 
 .toolbar-close {
+  flex: none;
   margin-left: auto;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-control);
+  border-radius: 5px;
   color: var(--text-muted);
   font-size: var(--text-sm);
+  transition: background var(--transition-fast), color var(--transition-fast), transform 80ms ease;
 }
 
 .toolbar-close:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
+}
+
+.toolbar-close:active {
+  transform: scale(0.94);
 }
 
 /* ---- Find & Replace Panel ---- */
@@ -866,15 +896,14 @@ button {
   box-shadow: var(--shadow-float);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   padding: 5px;
-  min-width: 340px;
-  max-width: min(480px, calc(100% - var(--space-6)));
+  width: min(380px, calc(100% - var(--space-6)));
 }
 
 .find-panel-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px;
 }
 
@@ -882,7 +911,7 @@ button {
 .find-expand-btn {
   flex: none;
   width: 20px;
-  height: 20px;
+  height: 28px;
   display: grid;
   place-items: center;
   border-radius: 3px;
@@ -900,13 +929,13 @@ button {
   width: 20px;
 }
 
-/* Input wrapper — holds icon + field + count */
+/* Input wrapper — holds icon + vertically-expanding field + count */
 .find-input-wrap {
   flex: 1;
   min-width: 0;
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   background: var(--editor-bg);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -924,6 +953,7 @@ button {
   display: grid;
   place-items: center;
   width: 28px;
+  height: 28px;
   color: var(--text-muted);
   pointer-events: none;
 }
@@ -931,14 +961,20 @@ button {
 .find-input {
   flex: 1;
   min-width: 0;
-  height: 28px;
-  padding: 0 var(--space-1) 0 0;
+  min-height: 28px;
+  max-height: 96px;
+  padding: 5px var(--space-1) 5px 0;
   font-family: var(--font-ui);
   font-size: var(--text-sm);
+  line-height: 1.35;
   background: transparent;
   color: var(--text-primary);
   border: none;
   outline: none;
+  resize: none;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Replace row has no search icon, needs left pad */
@@ -948,6 +984,9 @@ button {
 
 .find-count {
   flex: none;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
@@ -963,6 +1002,7 @@ button {
   flex: none;
   display: flex;
   gap: 2px;
+  margin-top: 2px;
 }
 
 .find-toggle-btn {
@@ -995,6 +1035,7 @@ button {
   background: var(--border);
   border-radius: 4px;
   padding: 1px;
+  margin-top: 1px;
 }
 
 .find-nav-btn {
@@ -1024,6 +1065,7 @@ button {
 .find-close-btn {
   flex: none;
   width: 26px;
+  margin-top: 2px;
   height: 26px;
   display: grid;
   place-items: center;
@@ -1079,11 +1121,13 @@ button {
 /* Search Highlights */
 .cm-searchMatch {
   background-color: var(--search-highlight) !important;
+  border-radius: 2px;
 }
 
 .cm-searchMatch-selected {
-  background-color: var(--selection) !important;
-  outline: 1px solid var(--accent);
+  background-color: var(--accent-soft) !important;
+  outline: 1.5px solid var(--accent);
+  border-radius: 2px;
 }
 
 /* ---- Focus Mode (Phase 06) ---- */
@@ -1968,6 +2012,7 @@ button {
 .shell:not(.is-focus) .app-menu-bar .theme-segment,
 .shell:not(.is-focus) .app-menu-bar .menu-segmented,
 .shell:not(.is-focus) .app-menu-bar .menu-segment,
+.shell:not(.is-focus) .editor-toolbar,
 .shell:not(.is-focus) .tabbar,
 .shell:not(.is-focus) .tabbar .tab,
 .shell:not(.is-focus) .tabbar .tab-new,

@@ -4,13 +4,13 @@
 // Strictly NO emoji glyphs, NO filled icon squares, NO text labels.
 
 import { h } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { useRef } from 'preact/hooks';
 
-// 14x14 geometric vector icons with 1.5px stroke
+// 16x16 geometric vector icons with 1.5px stroke
 function SvgIcon({ children, viewBox = '0 0 16 16' }) {
   return h('svg', {
-    width: '14',
-    height: '14',
+    width: '16',
+    height: '16',
     viewBox,
     fill: 'none',
     stroke: 'currentColor',
@@ -151,6 +151,7 @@ const TOOLS = [
       h('path', { d: 'M11 3.5c1.5 0 2 .5 2 2v1.5c0 1 .5 1.5 1.5 1.5-1 0-1.5.5-1.5 1.5V11c0 1.5-.5 2-2 2' })
     ),
   },
+  { type: 'sep' },
   {
     id: 'link',
     label: 'Link (Ctrl+K)',
@@ -230,7 +231,7 @@ export function Toolbar({
       tabIndex: 0,
       onClick: onClose,
     }, h('svg', {
-      width: '12', height: '12', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+      width: '13', height: '13', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
       'stroke-width': '1.5', 'stroke-linecap': 'round', 'aria-hidden': 'true',
     }, h('path', { d: 'M4.5 4.5l7 7M11.5 4.5l-7 7' })))
   );

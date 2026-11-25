@@ -952,6 +952,7 @@ function App() {
         onThemeChange: (p) => setThemePref(p).then(setPref),
         onMenuAction: runChromeMenuAction,
         findOpen,
+        toolbarOpen,
       }),
       h(TabBar, { tabs, activeId, onSelect: focusTab, onClose: closeTab, onNew: newFile, onReorder: reorderTabs }),
       tabs.length > 0 && h(Toolbar, {
