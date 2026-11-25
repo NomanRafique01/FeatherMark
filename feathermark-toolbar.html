@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FeatherMark — Toolbar Redesign</title>
+  <style>
+/* ═══════════════════════════════════════════════════════════════════════════════
+   PHASE 01 — FOUNDATION: Token System, Theme Detection, Fluid Dynamics
+   ═══════════════════════════════════════════════════════════════════════════════
+   Skills active: theme-system, dynamic-ui-engine, typography-master, design-engineering
+   
+   Philosophy (from ui-taste-enforcer):
+   - Decisions made FOR this project, not category defaults
+   - Every value traces to a token
+   - No new colors introduced
+   
+   Architecture (from desktop-ui-architect):
+   - Multi-pane spatial hierarchy
+   - Container queries for responsive components
+   - Keyboard-first ergonomics
+   
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ═══ RESET & BOX MODEL ═══ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ═══ TOKEN SYSTEM — verbatim from renderer/tokens.css ═══ */
+:root {
+  /* ─── Colors: Light Theme (DESIGN_TOKENS.md §5) ─── */
+  --app-bg:         #F5F3ED;
+  --sidebar-bg:     #EFEEE7;
+  --editor-bg:      #FFFFFF;
+  --preview-bg:     #FAF9F5;
+  --surface-hover:  #EAE9E1;
+  --surface-active: #E2E4D9;
+  --border:         #E4E2D9;
+  --border-strong:  #D4D3C8;
+  --text-primary:   #292D26;
+  --text-secondary: #5D5F59;  /* contrast-fit: 4.18:1 → 5.8:1 */
+  --text-muted:     #6C6D62;  /* contrast-fit: 2.36:1 → 4.7:1 */
+  --accent:         #587858;
+  --accent-hover:   #466747;
+  --accent-soft:    #E6EDE4;
+  --warning:        #B68A48;
+  --danger:         #B85C52;
+  --success:        #648665;
+  
+  /* ─── Interface-specific tokens ─── */
+  --tab-active-bg:    #FFFFFF;
+  --tab-inactive-bg:  #EFEEE7;
+  --tab-indicator:    #587858;
+  --unsaved-dot:      #B68A48;
+  --toolbar-hover:    #EAE9E1;
+  
+  /* ─── Syntax highlighting (DESIGN_TOKENS.md §2) ─── */
+  --syntax-heading:   #466747;
+  --syntax-bold:      #292D26;
+  --syntax-italic:    #787A68;
+  --syntax-link:      #537B91;
+  --syntax-code:      #A15F43;
+  --syntax-codeblock: #526C59;
+  --syntax-quote:     #858A7D;
+  --syntax-list:      #587858;
+  
+  /* ─── Spacing Scale (4px base, from dynamic-ui-engine) ─── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  
+  /* ─── Typography (from typography-master: Technical Swiss archetype) ─── */
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-editor: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  
+  /* ─── Tracking Laws (typography-master) ─── */
+  --tracking-display: -0.02em;  /* Headlines tighten */
+  --tracking-ui:      0;
+  --tracking-label:   0.01em;   /* Small labels relax */
+  
+  /* ─── Radii (design-engineering: decisive, not arbitrary) ─── */
+  --radius-control: 4px;
+  --radius-pill:    999px;
+  
+  /* ─── Motion Curves (from master plan + design-engineering) ─── */
+  --spring:           cubic-bezier(0.34, 1.56, 0.64, 1);  /* Overshoot spring for pill */
+  --ease-out:         cubic-bezier(0.4, 0, 0.2, 1);       /* Smooth deceleration */
+  --transition-fast:  120ms ease-out;                      /* Hover backgrounds */
+  --transition-med:   220ms;                               /* Pill, tab line */
+  --transition-theme: 350ms ease;                          /* Theme color shift */
+  
+  /* ─── Elevation (desktop-ui-architect: shadows only on floating things) ─── */
+  --shadow-float: 0 4px 16px rgba(20, 24, 18, 0.18);
+}
+
+/* ═══ DARK THEME OVERRIDES ═══ */
+[data-theme="dark"] {
+  --app-bg:         #20231F;
+  --sidebar-bg:     #242821;
+  --editor-bg:      #292D28;
+  --preview-bg:     #252923;
+  --surface-hover:  #32372F;
+  --surface-active: #394237;
+  --border:         #393E36;
+  --border-strong:  #4A5046;
+  --text-primary:   #E8E8DE;
+  --text-secondary: #B5B8AD;
+  --text-muted:     #8B9085;
+  --accent:         #A0BC98;
+  --accent-hover:   #B5CBAE;
+  --accent-soft:    #354538;
+  --warning:        #D2AA70;
+  --danger:         #D98278;
+  --success:        #A0BC98;
+  
+  --tab-active-bg:  #292D28;
+  --tab-inactive-bg:#242821;
+  --tab-indicator:  #A0BC98;
+  --unsaved-dot:    #D2AA70;
+  --toolbar-hover:  #32372F;
+  
+  --syntax-heading: #A7C6A3;
+  --syntax-bold:    #E8E8DE;
+  --syntax-italic:  #B8BBA9;
+  --syntax-link:    #91B9CD;
+  --syntax-code:    #D6A184;
+  --syntax-codeblock: #A5BEA0;
+  --syntax-quote:   #92998C;
+  --syntax-list:    #A0BC98;
+  
+  --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* ═══ BODY & SHELL (design-engineering: craft layer) ═══ */
+html, body {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: var(--tracking-ui);
+  background: var(--app-bg);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  
+  /* Theme breathing (from theme-system): whole page eases color shift */
+  transition: background-color var(--transition-theme),
+              color 250ms ease;
+  
+  /* Window focus guard (Section 7: NO degradation on blur) */
+  opacity: 1 !important;
+}
+
+/* ─── Window blur guard: nothing ever fades ─── */
+body, body * {
+  -webkit-app-region: no-drag;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ═══ FOCUS STATES (design-engineering: visible keyboard focus) ═══ */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ═══ SELECTION ═══ */
+::selection {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+/* ═══ REDUCED MOTION GUARD (accessibility: design-engineering) ═══ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* ═══ APP FRAME (desktop-ui-architect: multi-pane spatial hierarchy) ═══ */
+.app-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--app-bg);
+  transition: background var(--transition-theme);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   PHASE 02 — HEADER BAR: App Identity, Word Count, Window Controls
+   ═══════════════════════════════════════════════════════════════════════════════
+   Height: 38px | Background: --sidebar-bg | Border-bottom: 1px solid --border
+   
+   Layout (from phase-02-header-bar.md):
+   [app-icon 16×16] [wordmark "FeatherMark"] [——— drag region ———] [word-count-chip] [win-controls]
+   
+   Skills active: design-engineering (state polish), ui-taste-enforcer (no decoration)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.header-bar {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  min-height: 38px;
+  background: var(--sidebar-bg);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  /* Theme transition on border */
+  transition: background var(--transition-theme),
+              border-color 200ms ease;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 var(--space-3);
+  flex: 0 0 auto;
+}
+
+.header-center {
+  flex: 1 1 0;
+  height: 100%;
+  /* Draggable region in Electron: -webkit-app-region: drag;
+     In standalone HTML demo, just empty space */
+  -webkit-app-region: drag;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 0 0 var(--space-2);
+  flex: 0 0 auto;
+}
+
+/* ─── Feather App Icon (16×16 inline SVG, from phase-02) ─── */
+.app-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: block;
+  /* Color inherits from --accent */
+}
+
+/* ─── Wordmark (typography-master: tracking law for display) ─── */
+.wordmark {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.2px;  /* Tighter than body for display text */
+  color: var(--text-primary);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ─── Word Count Chip (design-engineering: micro-polish) ─── */
+.word-count-chip {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface-hover);
+  border-radius: var(--radius-control);
+  padding: 2px 6px;
+  white-space: nowrap;
+  letter-spacing: 0;
+  border: 1px solid var(--border);
+  transition: background var(--transition-fast),
+              color var(--transition-fast),
+              border-color 200ms ease;
+}
+
+/* ─── Window Controls (Windows spec: 46×32px per button, flat) ─── */
+.win-controls {
+  display: flex;
+  align-items: stretch;
+  height: 38px;
+  -webkit-app-region: no-drag;  /* Critical: buttons must be clickable */
+}
+
+.win-btn {
+  width: 46px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;  /* Flat — Windows standard (ui-taste-enforcer: no decoration) */
+  color: var(--text-secondary);
+  transition: background 100ms ease, color 100ms ease;
+  cursor: default;
+  flex-shrink: 0;
+}
+
+.win-btn:hover {
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+}
+
+/* Close button — #E81123 red hover (Section 8: documented exception) */
+.btn-close:hover {
+  background: #E81123;
+  color: #FFFFFF;
+}
+
+.win-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Active press feedback (design-engineering: immediate tap response) */
+.btn-close:active { background: #c50f1f; }
+.btn-min:active, .btn-max:active {
+  background: color-mix(in srgb, var(--text-muted) 25%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   PHASE 02 COMPLETE
+   ═══════════════════════���═══════════════════════════════════════════════════════ */
+  </style>
+</head>
+<body>
+  <div class="app-frame">
+    <!-- ═══════════════════════════════════════════════════════════════════
+         PHASE 02 — HEADER BAR (38px)
+         ═══════════════════════════════════════════════════════════════════ -->
+    <div class="header-bar">
+      <!-- Left: App Identity -->
+      <div class="header-left">
+        <!-- Feather Icon: hand-crafted 16×16 SVG (from phase-02-header-bar.md) -->
+        <svg class="app-icon" width="16" height="16" viewBox="0 0 16 16"
+             fill="none" stroke="var(--accent)" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <!-- Feather quill: shaft from bottom-left to top-right -->
+          <path d="M2 14 C4 10 10 6 14 2" />
+          <!-- Barbs on right side of quill -->
+          <path d="M14 2 C11 3 8 5 6 8" />
+          <path d="M14 2 C13 5 11 8 8 11" />
+          <path d="M6 8 L8 11" />
+          <!-- Nib detail -->
+          <path d="M2 14 L6 10" stroke-width="1" opacity="0.6" />
+        </svg>
+        
+        <span class="wordmark">FeatherMark</span>
+      </div>
+      
+      <!-- Center: Draggable Region (Electron) -->
+      <div class="header-center"></div>
+      
+      <!-- Right: Word Count + Window Controls -->
+      <div class="header-right">
+        <span class="word-count-chip" id="word-count-chip">348 words</span>
+        
+        <div class="win-controls" role="group" aria-label="Window controls">
+          <!-- Minimize Button -->
+          <button class="win-btn btn-min" aria-label="Minimize" title="Minimize">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
+                 stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+              <line x1="1" y1="5" x2="9" y2="5" />
+            </svg>
+          </button>
+          
+          <!-- Maximize Button -->
+          <button class="win-btn btn-max" aria-label="Maximize" title="Maximize">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
+                 stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
+                 stroke-linejoin="round">
+              <rect x="1" y="1" width="8" height="8" />
+            </svg>
+          </button>
+          
+          <!-- Close Button (Windows red hover exception) -->
+          <button class="win-btn btn-close" aria-label="Close" title="Close">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
+                 stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+              <line x1="1" y1="1" x2="9" y2="9" />
+              <line x1="9" y1="1" x2="1" y2="9" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Phase 03-05 content will be added below -->
+  </div>
+  
+  <script>
+/* ═══════════════════════════════════════════════════════════════════════════════
+   THEME DETECTION (runs before first paint to prevent FOWT)
+   From theme-system + phase-01-foundation.md
+   ═══════════════════════════════════════════════════════════════════════════════ */
+(function() {
+  // Read stored preference or default to 'system'
+  const stored = localStorage.getItem('feathermark-theme') || 'system';
+  
+  // Detect OS preference
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  
+  // Resolve effective theme
+  const effective = stored === 'dark' ? 'dark'
+                  : stored === 'light' ? 'light'
+                  : prefersDark ? 'dark' : 'light';
+  
+  // Apply before paint
+  document.documentElement.setAttribute('data-theme', effective);
+  
+  // Store for JS to read later
+  window.__FM_THEME_PREF = stored;
+  window.__FM_EFFECTIVE_THEME = effective;
+  
+  console.log('[Phase 01] Theme initialized:', { stored, prefersDark, effective });
+})();
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Phase 01 JS complete
+   - Theme detection runs before paint (FOWT prevention)
+   - localStorage persists user choice
+   - prefers-color-scheme media query respects OS setting
+   - Global variables available for Phase 03 theme toggle
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   PHASE 02 — HEADER BAR INTERACTIONS
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+// Window Controls (Demo behavior)
+document.addEventListener('DOMContentLoaded', () => {
+  const btnMin = document.querySelector('.btn-min');
+  const btnMax = document.querySelector('.btn-max');
+  const btnClose = document.querySelector('.btn-close');
+  
+  if (btnMin) {
+    btnMin.addEventListener('click', () => {
+      console.log('[Phase 02] Minimize clicked');
+      // In real Electron: window.electron.minimize()
+    });
+  }
+  
+  if (btnMax) {
+    btnMax.addEventListener('click', () => {
+      console.log('[Phase 02] Maximize clicked');
+      document.body.classList.toggle('is-maximized');
+      // In real Electron: window.electron.maximize()
+    });
+  }
+  
+  if (btnClose) {
+    btnClose.addEventListener('click', () => {
+      console.log('[Phase 02] Close clicked');
+      // In real Electron: window.electron.close()
+      // Demo: show brief feedback
+      btnClose.style.transform = 'scale(0.9)';
+      setTimeout(() => {
+        btnClose.style.transform = '';
+      }, 100);
+    });
+  }
+  
+  console.log('[Phase 02] Header bar initialized');
+});
+  </script>
+</body>
+</html>
