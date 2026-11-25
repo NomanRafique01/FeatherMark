@@ -26,6 +26,9 @@
   --accent: #587858;
   --accent-hover: #466747;
   --accent-soft: #E6EDE4;
+  --brand-green: #426439;
+  --bg-btn: #EAE9E1;
+  --bg-btn-hover: #E2E4D9;
 
   --success: #648665;
   --warning: #B68A48;
@@ -53,6 +56,9 @@
   --accent: #A0BC98;
   --accent-hover: #B5CBAE;
   --accent-soft: #354538;
+  --brand-green: #426439;
+  --bg-btn: #32372F;
+  --bg-btn-hover: #394237;
 
   --success: #A0BC98;
   --warning: #D2AA70;
@@ -126,8 +132,10 @@
   /* Interface-specific (§3) */
   --tab-active-bg: #FFFFFF;
   --tab-inactive-bg: #EFEEE7;
-  --tab-indicator: #587858;
-  --unsaved-dot: #B68A48;
+  --tab-indicator: #587858;  /* brand green — same as --accent light */
+  --unsaved-dot: #587858;    /* unified to brand green (was orange #E8905A) */
+  --segment-pill-bg: #FFFFFF;
+  --on-accent: #FFFFFF;      /* text/icon color on any brand-green active surface */
   --toolbar-icon: #73766B;
   --toolbar-hover: #EAE9E1;
   --selection: #DCE8D8;
@@ -149,8 +157,10 @@
 
   --tab-active-bg: #292D28;
   --tab-inactive-bg: #242821;
-  --tab-indicator: #A0BC98;
-  --unsaved-dot: #D2AA70;
+  --tab-indicator: #A0BC98;  /* brand green — same as --accent dark */
+  --unsaved-dot: #A0BC98;    /* unified to brand green (matches --accent dark) */
+  --segment-pill-bg: #2A2A33;
+  --on-accent: #FFFFFF;      /* text/icon color on any brand-green active surface */
   --toolbar-icon: #92978B;
   --toolbar-hover: #32372F;
   --selection: #435441;
