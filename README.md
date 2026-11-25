@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/NomanRafique01/FeatherMark/releases/download/v0.1.0/FeatherMark-Setup-0.1.0.exe">
-    <img src="https://img.shields.io/github/downloads/NomanRafique01/FeatherMark/v0.1.0/FeatherMark-Setup-0.1.0.exe?style=flat-square&label=installs&color=426439&cacheSeconds=300" alt="FeatherMark installer downloads" />
+  <a href="https://github.com/NomanRafique01/FeatherMark/releases/latest">
+    <img src="https://img.shields.io/badge/Download-Windows%20Installer-426439?style=flat-square&logo=windows&logoColor=white" alt="Download FeatherMark Windows installer" />
   </a>
   <img src="https://img.shields.io/badge/platform-Windows%20x64-0078d4?style=flat-square&logo=windows&logoColor=white" alt="Platform: Windows x64" />
   <img src="https://img.shields.io/badge/Electron-desktop-47848f?style=flat-square&logo=electron&logoColor=white" alt="Electron desktop app" />
@@ -67,7 +67,7 @@ FeatherMark is distributed as a Windows x64 installer through GitHub Releases.
 The current release artifact is named `FeatherMark-Setup-0.1.0.exe`.
 
 > [!NOTE]
-> The install badge counts downloads of the published FeatherMark installer asset. GitHub does not expose a reliable count of unique installations.
+> The latest Windows installer is available from the [GitHub Releases page](https://github.com/NomanRafique01/FeatherMark/releases/latest).
 
 ## Features
 
