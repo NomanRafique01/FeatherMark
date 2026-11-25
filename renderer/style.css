@@ -1643,26 +1643,39 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--space-8) var(--space-6);
+  justify-content: center;
+  padding: var(--space-4) var(--space-6);
   min-height: 0;
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .empty-shell {
   width: min(560px, 100%);
+  max-height: 100%;
   margin: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-6);
+  gap: var(--space-4);
 }
 
 .empty-hero {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.empty-logo {
+  width: 112px;
+  height: 112px;
+  display: block;
+  object-fit: contain;
+  margin-bottom: -6px;
+  user-select: none;
+  pointer-events: none;
 }
 
 .empty-hint {
@@ -1724,6 +1737,7 @@ button {
 
 .recents {
   width: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -1790,7 +1804,9 @@ button {
   background: var(--preview-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
-  max-height: min(360px, 46vh);
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: min(320px, 42vh);
   overflow-y: auto;
   overscroll-behavior: contain;
 }

@@ -664,7 +664,7 @@ function App() {
 
   async function restoreSession() {
     const session = await window.feathermark.getSession();
-    if (!session || session.tabs.length === 0) { await newFile(); return; } // honest start: one empty tab, no void
+    if (!session || session.tabs.length === 0) return; // start on empty welcome/logo screen
     const seenIds = new Set();
     const restored = [];
     for (const t of session.tabs) {
@@ -975,6 +975,14 @@ function App() {
       tabs.length === 0 ? h('main', { class: 'empty' },
         h('div', { class: 'empty-shell' },
           h('div', { class: 'empty-hero' },
+            h('img', {
+              class: 'empty-logo',
+              src: '../assets/icon.png',
+              alt: '',
+              width: 112,
+              height: 112,
+              draggable: false,
+            }),
             h('p', { class: 'empty-hint' }, 'Open a file to start writing, or press Ctrl+O.'),
             h('div', { class: 'empty-actions' },
               h('button', {
