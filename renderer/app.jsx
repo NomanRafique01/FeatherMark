@@ -1058,6 +1058,7 @@ function App() {
               previewHandleRef: previewHandleRef,
               searchQuery: findOpen ? searchState.query : '',
               searchOpts: searchState,
+              matchIndex,
             })
           ),
         ),

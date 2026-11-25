@@ -111,6 +111,7 @@ export function Preview({
   previewHandleRef,
   searchQuery = '',
   searchOpts = {},
+  matchIndex = 0,
 }) {
   const containerRef = useRef(null);
   const proseRef = useRef(null);
@@ -243,11 +244,14 @@ export function Preview({
   }, [text]);
 
   // Highlight search matches in rendered preview using CSS Custom Highlight API
+  // Walks all text nodes and joins them so matches spanning inline tags (bold/italic/code/links) highlight cleanly.
   useEffect(() => {
     if (typeof CSS === 'undefined' || !CSS.highlights || typeof Highlight === 'undefined') return;
     const prose = proseRef.current;
+    const container = containerRef.current;
     if (!prose || !searchQuery) {
       CSS.highlights.delete('fm-search-match');
+      CSS.highlights.delete('fm-search-match-active');
       return;
     }
 
@@ -259,36 +263,77 @@ export function Preview({
       regex = new RegExp(pattern, flags);
     } catch {
       CSS.highlights.delete('fm-search-match');
+      CSS.highlights.delete('fm-search-match-active');
       return;
     }
 
-    const ranges = [];
+    const segments = [];
+    let fullText = '';
     const walker = document.createTreeWalker(prose, NodeFilter.SHOW_TEXT);
     let node;
     while ((node = walker.nextNode())) {
       const val = node.nodeValue;
       if (!val) continue;
-      regex.lastIndex = 0;
-      let match;
-      while ((match = regex.exec(val)) !== null) {
-        if (match[0].length === 0) break;
+      const start = fullText.length;
+      fullText += val;
+      segments.push({ node, start, end: fullText.length });
+    }
+
+    const findPos = (offset) => {
+      for (let i = 0; i < segments.length; i++) {
+        const s = segments[i];
+        if (offset >= s.start && offset <= s.end) {
+          return { node: s.node, offset: offset - s.start };
+        }
+      }
+      return null;
+    };
+
+    const ranges = [];
+    regex.lastIndex = 0;
+    let match;
+    while ((match = regex.exec(fullText)) !== null) {
+      if (match[0].length === 0) break;
+      const startPos = findPos(match.index);
+      const endPos = findPos(match.index + match[0].length);
+      if (startPos && endPos) {
         const range = new Range();
-        range.setStart(node, match.index);
-        range.setEnd(node, match.index + match[0].length);
+        range.setStart(startPos.node, startPos.offset);
+        range.setEnd(endPos.node, endPos.offset);
         ranges.push(range);
       }
+      if (ranges.length >= 2000) break;
     }
 
     if (ranges.length > 0) {
-      CSS.highlights.set('fm-search-match', new Highlight(...ranges));
+      const activeIdx = ((matchIndex % ranges.length) + ranges.length) % ranges.length;
+      const activeRange = ranges[activeIdx];
+      const passive = ranges.filter((_, i) => i !== activeIdx);
+      if (passive.length > 0) {
+        CSS.highlights.set('fm-search-match', new Highlight(...passive));
+      } else {
+        CSS.highlights.delete('fm-search-match');
+      }
+      CSS.highlights.set('fm-search-match-active', new Highlight(activeRange));
+
+      if (container) {
+        const rect = activeRange.getBoundingClientRect();
+        const cRect = container.getBoundingClientRect();
+        if (rect.height > 0 && (rect.top < cRect.top + 48 || rect.bottom > cRect.bottom - 24)) {
+          const targetTop = container.scrollTop + (rect.top - cRect.top) - cRect.height * 0.35;
+          container.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+        }
+      }
     } else {
       CSS.highlights.delete('fm-search-match');
+      CSS.highlights.delete('fm-search-match-active');
     }
 
     return () => {
       CSS.highlights.delete('fm-search-match');
+      CSS.highlights.delete('fm-search-match-active');
     };
-  }, [searchQuery, searchOpts?.caseSensitive, searchOpts?.wholeWord, text]);
+  }, [searchQuery, searchOpts?.caseSensitive, searchOpts?.wholeWord, matchIndex, text]);
 
   // Immediate render on mount (innerHTML, no morph needed — DOM is empty)
   useEffect(() => {

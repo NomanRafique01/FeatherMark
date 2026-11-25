@@ -1135,6 +1135,11 @@ button {
   color: var(--text-primary);
 }
 
+::highlight(fm-search-match-active) {
+  background-color: rgba(232, 144, 90, 0.45);
+  color: var(--text-primary);
+}
+
 /* ---- Focus Mode (Phase 06) ---- */
 
 .shell.is-focus {
@@ -1521,7 +1526,7 @@ button {
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   padding: var(--space-3) var(--space-4);
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 .preview-prose pre code {
@@ -1533,8 +1538,9 @@ button {
   background: transparent;
   padding: 0;
   border-radius: 0;
-  word-break: normal;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .preview-prose table {
