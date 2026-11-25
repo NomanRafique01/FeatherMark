@@ -59,6 +59,7 @@ function createWindow() {
     height: 800,
     minWidth: 768,
     minHeight: 480,
+    frame: false,
     backgroundColor: THEME_BG[effectiveTheme()],
     show: false,
     icon: path.join(__dirname, 'assets', 'icon.png'),
@@ -76,6 +77,18 @@ function createWindow() {
     if (notice) sendToRenderer('feathermark:recovery-notice', notice);
   });
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
+  // Keep renderer startup failures visible when the window is blank. Electron's
+  // default window gives no useful feedback for a preload/runtime exception.
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.error('renderer failed to load:', errorCode, errorDescription, validatedURL);
+  });
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('renderer process exited:', details.reason, details.exitCode);
+  });
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (level >= 2) console.error(`renderer console [${sourceId}:${line}]: ${message}`);
+  });
 
   mainWindow.webContents.on('context-menu', (e) => e.preventDefault());
 
@@ -203,7 +216,7 @@ const fileHandlers = {
   },
 
   tabOpened(tabId, filePath) {
-    tabs.set(tabId, { path: filePath || null, dirty: !filePath });
+    tabs.set(tabId, { path: filePath || null, dirty: false });
     if (filePath) settings.addRecent(filePath);
     activeTabId = tabId;
     tabEvents.requestSnapshot();
@@ -308,6 +321,17 @@ ipcMain.handle('feathermark:set-theme-pref', (_e, pref) => {
   return theme;
 });
 
+ipcMain.handle('feathermark:window-control', (_e, action) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  if (action === 'minimize') mainWindow.minimize();
+  else if (action === 'maximize') {
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+  } else if (action === 'close') mainWindow.close();
+  else return false;
+  return true;
+});
+
 // ---- Exit / Close: exactly one confirm flow, native, with Save all / Don’t save / Cancel ----
 // The renderer owns text, so "Save all" asks it to flush every dirty tab, then quits
 // when the renderer reports done. Cancel returns to the editor with everything intact.
@@ -329,17 +353,21 @@ async function checkUnsavedBeforeExit(event) {
   isClosingOrQuitting = true;
 
   const names = unsaved.map(([, t]) => (t.path ? path.basename(t.path) : 'Untitled'));
-  const { response } = await dialog.showMessageBox(mainWindow, {
-    type: 'warning',
-    title: 'Unsaved changes',
-    message: unsaved.length === 1
-      ? '“' + names[0] + '” has unsaved changes.'
-      : unsaved.length + ' tabs have unsaved changes.',
-    detail: 'Saving writes every changed tab to its file; discarding drops the changes since the last save; cancelling returns you to the editor.',
-    buttons: ['Save all', 'Don’t save', 'Cancel'],
-    defaultId: 0,
-    cancelId: 2,
-    noLink: true,
+  const response = await new Promise((resolve) => {
+    let done = false;
+    const finishPrompt = (choice) => {
+      if (done) return;
+      done = true;
+      ipcMain.removeListener('feathermark:confirm-exit-done', onChoice);
+      resolve(choice);
+    };
+    const onChoice = (_e, choice) => finishPrompt(choice);
+    ipcMain.on('feathermark:confirm-exit-done', onChoice);
+    mainWindow.once('closed', () => finishPrompt(2));
+    sendToRenderer('feathermark:confirm-exit-request', {
+      count: unsaved.length,
+      name: names[0],
+    });
   });
 
   if (response === 2) {
@@ -469,7 +497,7 @@ function buildMenu() {
 
 app.whenReady().then(() => {
   nativeTheme.themeSource = toThemeSource(settings.get('theme', 'auto'));
-  Menu.setApplicationMenu(buildMenu());
+  Menu.setApplicationMenu(null);
   createWindow();
 
   app.on('activate', () => {

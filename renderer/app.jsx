@@ -18,6 +18,8 @@ import { Outline } from './components/Outline.jsx';
 import { StatusBar } from './components/StatusBar.jsx';
 import { Toolbar } from './components/Toolbar.jsx';
 import { FindReplace } from './components/FindReplace.jsx';
+import { AppMenuBar } from './components/AppMenuBar.jsx';
+import { AppHeader } from './components/AppHeader.jsx';
 
 const THEME_PREFS = ['auto', 'light', 'dark'];
 const VIEW_MODES = ['split', 'preview-only', 'editor-only'];
@@ -32,7 +34,7 @@ function basename(p) {
 
 function makeTab(path, text) {
   return { id: newTabId(), path: path || null, name: path ? basename(path) : 'Untitled',
-    text, dirty: !path, cursor: 0, scroll: 0, previewScroll: 0 };
+    text, dirty: false, cursor: 0, scroll: 0, previewScroll: 0 };
 }
 
 // ---- Recents (empty state) ----
@@ -54,8 +56,88 @@ function RecentFiles({ recents, onOpen, onForget }) {
         h('button', {
           class: 'recents-forget', 'aria-label': 'Remove from recent files',
           onClick: () => onForget(r.path),
-        }, '×'),
+        }, h('svg', {
+          width: '11', height: '11', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+          'stroke-width': '1.5', 'stroke-linecap': 'round', 'aria-hidden': 'true',
+        }, h('path', { d: 'M4.5 4.5l7 7M11.5 4.5l-7 7' }))),
       )),
+    ),
+  );
+}
+
+// ---- Confirm close dialog ----
+
+function ConfirmCloseDialog({ title, description, primaryLabel, onResolve }) {
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onResolve(2);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onResolve]);
+
+  return h('div', {
+    class: 'confirm-backdrop',
+    role: 'presentation',
+    onMouseDown: (e) => {
+      if (e.target === e.currentTarget) onResolve(2);
+    },
+  },
+    h('div', {
+      class: 'confirm-dialog',
+      role: 'alertdialog',
+      'aria-modal': 'true',
+      'aria-labelledby': 'confirm-close-title',
+      'aria-describedby': 'confirm-close-desc',
+    },
+      h('div', { class: 'confirm-header' },
+        h('span', { class: 'confirm-icon', 'aria-hidden': 'true' },
+          h('svg', {
+            width: '16', height: '16', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+            'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+          },
+            h('path', { d: 'M8 2.2 14.2 13H1.8L8 2.2Z' }),
+            h('line', { x1: '8', y1: '6.2', x2: '8', y2: '9.4' }),
+            h('circle', { cx: '8', cy: '11.3', r: '0.6', fill: 'currentColor', stroke: 'none' }),
+          ),
+        ),
+        h('div', { class: 'confirm-titles' },
+          h('h2', { id: 'confirm-close-title', class: 'confirm-title' }, title),
+          h('p', { id: 'confirm-close-desc', class: 'confirm-desc' }, description),
+        ),
+        h('button', {
+          type: 'button',
+          class: 'confirm-close-x',
+          'aria-label': 'Cancel',
+          onClick: () => onResolve(2),
+        },
+          h('svg', {
+            width: '12', height: '12', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+            'stroke-width': '1.5', 'stroke-linecap': 'round', 'aria-hidden': 'true',
+          }, h('path', { d: 'M4.5 4.5l7 7M11.5 4.5l-7 7' })),
+        ),
+      ),
+      h('div', { class: 'confirm-actions' },
+        h('button', {
+          type: 'button',
+          class: 'confirm-btn is-discard',
+          onClick: () => onResolve(1),
+        }, 'Don’t save'),
+        h('button', {
+          type: 'button',
+          class: 'confirm-btn is-cancel',
+          onClick: () => onResolve(2),
+        }, 'Cancel'),
+        h('button', {
+          type: 'button',
+          class: 'confirm-btn is-primary',
+          autoFocus: true,
+          onClick: () => onResolve(0),
+        }, primaryLabel),
+      ),
     ),
   );
 }
@@ -84,6 +166,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [dropping, setDropping] = useState(false);
   const [pref, setPref] = useState('auto');
+  const [closeConfirm, setCloseConfirm] = useState(null); // { name, resolve }
   const editorHandleRef = useRef(null);
   const previewHandleRef = useRef(null);
   const activeScrollerRef = useRef('editor');
@@ -100,6 +183,36 @@ function App() {
       window.feathermark.setSettings('viewMode', next);
       return next;
     });
+  }
+
+  function setChromeMode(mode) {
+    if (mode === 'focus') {
+      if (!focusMode) toggleFocusMode();
+      return;
+    }
+    if (focusMode) toggleFocusMode();
+    const next = mode === 'editor' ? 'editor-only' : mode === 'preview' ? 'preview-only' : 'split';
+    setViewMode(next);
+    window.feathermark.setSettings('viewMode', next);
+  }
+
+  function runChromeMenuAction(action) {
+    if (action === 'new-file') newFile();
+    else if (action === 'open-file') window.feathermark.openFileDialog().then((p) => p && openPath(p));
+    else if (action === 'save-file') saveActive();
+    else if (action === 'save-file-as') saveAsActive();
+    else if (action === 'find-replace') setFindOpen(true);
+    else if (action === 'toggle-toolbar') toggleToolbar();
+    else if (action === 'toggle-outline') toggleOutline();
+    else if (action === 'toggle-focus') toggleFocusMode();
+    else if (action === 'about') setNotice({
+      tone: 'info',
+      text: 'FeatherMark is a quiet, distraction-free Markdown editor built for plain-text writing.',
+    });
+  }
+
+  function handleWindowAction(action) {
+    window.feathermark.windowControl(action);
   }
 
   function toggleOutline() {
@@ -337,12 +450,30 @@ function App() {
     }
   }
 
+  function requestCloseConfirm({ title, description, primaryLabel }) {
+    return new Promise((resolve) => {
+      setCloseConfirm({
+        title,
+        description,
+        primaryLabel,
+        resolve: (choice) => {
+          setCloseConfirm(null);
+          resolve(choice);
+        },
+      });
+    });
+  }
+
   async function closeTab(tabId) {
     saveCurrentTabScroll();
     const tab = stateRef.current.tabs.find((t) => t.id === tabId);
     if (!tab) return;
     if (tab.dirty) {
-      const choice = await window.feathermark.confirmCloseTab(tab.name); // native, one flow
+      const choice = await requestCloseConfirm({
+        title: `Save changes to “${tab.name}”?`,
+        description: 'Your changes will be lost if you close this tab without saving.',
+        primaryLabel: 'Save & close',
+      });
       if (choice === 2) return; // cancel — text intact
       if (choice === 0) {
         const result = tab.path
@@ -549,6 +680,14 @@ function App() {
     off.push(window.feathermark.onDropOpen((p) => openPath(p)));
     off.push(window.feathermark.onSnapshotRequest(() => takeSnapshot()));
     off.push(window.feathermark.onSaveAllRequest((tabIds) => saveAll(tabIds)));
+    off.push(window.feathermark.onConfirmExitRequest(async ({ count, name }) => {
+      const choice = await requestCloseConfirm({
+        title: count === 1 ? `Save changes to “${name}”?` : `Save changes to ${count} unsaved files?`,
+        description: 'Your changes will be lost if you close the app without saving.',
+        primaryLabel: count === 1 ? 'Save & quit' : 'Save all',
+      });
+      window.feathermark.confirmExitDone(choice);
+    }));
     off.push(window.feathermark.onRecoveryNotice((n) => {
       setNotice({
         tone: 'warning',
@@ -695,7 +834,15 @@ function App() {
   // ---- render ----
 
   return h('div', { class: 'shell' + (dropping ? ' is-dropping' : '') + (focusMode ? ' is-focus' : '') },
+    h(AppHeader, { onWindowAction: handleWindowAction }),
     h('div', { class: 'workspace' },
+      h(AppMenuBar, {
+        mode: focusMode ? 'focus' : viewMode === 'editor-only' ? 'editor' : viewMode === 'preview-only' ? 'preview' : 'split',
+        onModeChange: setChromeMode,
+        themePref: pref,
+        onThemeChange: (p) => setThemePref(p).then(setPref),
+        onMenuAction: runChromeMenuAction,
+      }),
       h(TabBar, { tabs, activeId, onSelect: focusTab, onClose: closeTab, onNew: newFile, onReorder: reorderTabs }),
       tabs.length > 0 && h(Toolbar, {
         isOpen: toolbarOpen,
@@ -715,7 +862,11 @@ function App() {
       }),
       notice && h('div', { class: 'notice notice-' + notice.tone, role: 'alert' },
         h('span', {}, notice.text),
-        h('button', { class: 'notice-close', 'aria-label': 'Dismiss', onClick: () => setNotice(null) }, '×'),
+        h('button', { class: 'notice-close', 'aria-label': 'Dismiss', onClick: () => setNotice(null) },
+          h('svg', {
+            width: '12', height: '12', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+            'stroke-width': '1.5', 'stroke-linecap': 'round', 'aria-hidden': 'true',
+          }, h('path', { d: 'M4.5 4.5l7 7M11.5 4.5l-7 7' }))),
       ),
       loading && h('div', { class: 'loading' }, h('span', { class: 'loading-bar', 'aria-label': 'Loading file' })),
       tabs.length === 0 ? h('main', { class: 'empty' },
@@ -784,19 +935,17 @@ function App() {
     dropping && h('div', { class: 'drop-overlay' },
       h('div', { class: 'drop-frame' }, 'Drop a Markdown or text file to open it'),
     ),
+    closeConfirm && h(ConfirmCloseDialog, {
+      title: closeConfirm.title,
+      description: closeConfirm.description,
+      primaryLabel: closeConfirm.primaryLabel,
+      onResolve: closeConfirm.resolve,
+    }),
     h(StatusBar, {
       active,
       cursorPos,
-      viewMode,
-      onViewModeChange: (m) => {
-        setViewMode(m);
-        window.feathermark.setSettings('viewMode', m);
-      },
-      themePref: pref,
-      onThemeChange: (p) => setThemePref(p).then(setPref),
-      focusMode,
-      onToggleFocusMode: toggleFocusMode,
       savedBeat,
+      focusMode,
     })
   );
 }

@@ -8,6 +8,7 @@
 //   setSettings(key, value)           -> Promise<boolean>      feathermark:set-settings
 //   getTheme()                        -> Promise<'light'|'dark'> feathermark:get-theme
 //   setThemePref('auto'|'light'|'dark') -> Promise<'light'|'dark'> feathermark:set-theme-pref
+//   windowControl('minimize'|'maximize'|'close') -> Promise<boolean> feathermark:window-control
 //   onThemeChanged(cb)                -> unsubscribe fn        ipc event feathermark:theme-changed
 //   onMenu(cb)                        -> unsubscribe fn        ipc event feathermark:menu
 //                                                  ('new-file'|'open-file'|'save-file'|'save-file-as'|'close-tab'|'find-replace'|'toggle-preview'|'toggle-outline')
@@ -48,6 +49,7 @@ contextBridge.exposeInMainWorld('feathermark', {
 
   getTheme: () => ipcRenderer.invoke('feathermark:get-theme'),
   setThemePref: (pref) => ipcRenderer.invoke('feathermark:set-theme-pref', pref),
+  windowControl: (action) => ipcRenderer.invoke('feathermark:window-control', action),
 
   openFileDialog: () => ipcRenderer.invoke('feathermark:open-file-dialog'),
   open: (filePath) => ipcRenderer.invoke('feathermark:open', filePath),
@@ -69,6 +71,7 @@ contextBridge.exposeInMainWorld('feathermark', {
   getPathForFile: (file) => (webUtils && typeof webUtils.getPathForFile === 'function' ? webUtils.getPathForFile(file) : (file && file.path)),
 
   saveAllDone: (ok) => ipcRenderer.send('feathermark:save-all-done', ok),
+  confirmExitDone: (choice) => ipcRenderer.send('feathermark:confirm-exit-done', choice),
 
   onThemeChanged: (cb) => relay('feathermark:theme-changed', cb),
   onMenu: (cb) => relay('feathermark:menu', cb),
@@ -77,4 +80,5 @@ contextBridge.exposeInMainWorld('feathermark', {
   onRecoveryNotice: (cb) => relay('feathermark:recovery-notice', cb),
   onSnapshotRequest: (cb) => relay('feathermark:snapshot-request', cb),
   onSaveAllRequest: (cb) => relay('feathermark:save-all-request', cb),
+  onConfirmExitRequest: (cb) => relay('feathermark:confirm-exit-request', cb),
 });
