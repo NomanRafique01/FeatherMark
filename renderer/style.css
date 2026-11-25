@@ -84,12 +84,12 @@ button {
               color 400ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* ---- Row 1: Title Bar (40px) ---- */
+/* ---- Row 1: Title Bar (34px) ---- */
 
 .app-header {
-  flex: 0 0 40px;
-  height: 40px;
-  min-height: 40px;
+  flex: 0 0 34px;
+  height: 34px;
+  min-height: 34px;
   display: flex;
   align-items: center;
   background: var(--sidebar-bg);
@@ -104,14 +104,14 @@ button {
   height: 100%;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   padding-inline: var(--space-3);
   pointer-events: none;
 }
 
 .app-brand-icon {
-  width: 20px;
-  height: 20px;
+  width: 17px;
+  height: 17px;
   display: block;
   flex: none;
   object-fit: contain;
@@ -119,9 +119,9 @@ button {
 
 .app-brand-name {
   color: var(--text-primary);
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 600;
-  letter-spacing: -0.2px;
+  letter-spacing: -0.15px;
   white-space: nowrap;
 }
 
@@ -134,8 +134,8 @@ button {
 }
 
 .app-window-control {
-  width: 46px;
-  height: 32px;
+  width: 42px;
+  height: 34px;
   display: grid;
   place-items: center;
   color: var(--text-secondary);
@@ -159,15 +159,15 @@ button {
   container-type: inline-size;
 }
 
-/* ---- Row 2: Menu Bar (34px) ---- */
+/* ---- Row 2: Menu Bar (30px) ---- */
 
 .app-nav-bar {
-  flex: 0 0 34px;
-  height: 34px;
-  min-height: 34px;
+  flex: 0 0 30px;
+  height: 30px;
+  min-height: 30px;
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 2px;
   padding: 0 var(--space-3);
   background: var(--app-bg);
   border-bottom: 1px solid var(--border);
@@ -186,10 +186,10 @@ button {
 }
 
 .app-nav-item {
-  padding: 4px 12px;
+  padding: 4px 11px;
   border-radius: 5px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 400;
   line-height: 1.2;
   text-align: left;
@@ -205,25 +205,25 @@ button {
 
 .app-nav-popover {
   position: absolute;
-  top: calc(100% - 2px);
+  top: calc(100% - 1px);
   left: 0;
-  min-width: 176px;
+  min-width: 164px;
   display: grid;
-  gap: var(--space-1);
-  padding: var(--space-1);
+  gap: 2px;
+  padding: 4px;
   background: var(--editor-bg);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-control);
+  border-radius: 6px;
   box-shadow: var(--shadow-float);
   z-index: 100;
 }
 
 .app-nav-action {
-  min-height: 32px;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-control);
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 4px;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: 12px;
   text-align: left;
   white-space: nowrap;
   transition: background-color 120ms ease, color 120ms ease;
@@ -233,15 +233,15 @@ button {
 .app-nav-action:focus-visible { background: var(--bg-btn-hover); color: var(--text-primary); }
 .app-nav-action:active { background: var(--surface-active); }
 
-/* ---- Row 3: Toolbar (44px) ---- */
+/* ---- Row 3: View & Mode Bar (38px) ---- */
 
 .app-menu-bar {
-  flex: 0 0 44px;
-  height: 44px;
-  min-height: 44px;
+  flex: 0 0 38px;
+  height: 38px;
+  min-height: 38px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 0 var(--space-4);
   background: var(--app-bg);
   border-bottom: 1px solid var(--border);
@@ -262,9 +262,9 @@ button {
   align-items: center;
   background: var(--bg-btn);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 4px;
-  gap: 4px;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 3px;
   overflow: visible;
   flex: none;
   transition: background-color 400ms cubic-bezier(0.4, 0, 0.2, 1),
@@ -273,40 +273,40 @@ button {
 
 .theme-segment-pill {
   position: absolute;
-  top: 4px;
-  left: 4px;
-  width: 36px;
-  height: calc(100% - 8px);
+  top: 3px;
+  left: 3px;
+  width: 38px;
+  height: calc(100% - 6px);
   background: var(--brand-green);
-  border-radius: 7px;
+  border-radius: 6px;
   z-index: 0;
   pointer-events: none;
-  box-shadow: 0 2px 8px rgba(66, 100, 57, 0.35);
+  box-shadow: 0 1px 5px rgba(66, 100, 57, 0.30);
   transform: translateX(0);
-  transition: transform 420ms cubic-bezier(0.4, 0, 0.2, 1),
-              width 380ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1),
+              width 280ms cubic-bezier(0.4, 0, 0.2, 1);
   will-change: transform, width;
 }
 
 .theme-segment {
   position: relative;
   z-index: 1;
-  width: 36px;
-  height: 30px;
-  border-radius: 7px;
+  width: 38px;
+  height: 26px;
+  border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   color: var(--text-secondary);
   transform: scale(1);
-  transition: color 300ms cubic-bezier(0.4, 0, 0.2, 1),
-              transform 160ms ease-out;
+  transition: color 240ms cubic-bezier(0.4, 0, 0.2, 1),
+              transform 140ms ease-out;
 }
 
 .theme-segment svg {
-  width: 16px;
-  height: 16px;
+  width: 14.5px;
+  height: 14.5px;
   display: block;
 }
 
@@ -320,7 +320,7 @@ button {
 
 .theme-segment:active {
   transform: scale(0.95);
-  transition: color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+  transition: color 240ms cubic-bezier(0.4, 0, 0.2, 1),
               transform 80ms ease;
 }
 
@@ -332,9 +332,9 @@ button {
   align-items: center;
   background: var(--bg-btn);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 4px;
-  gap: 4px;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 3px;
   overflow: visible;
   flex: none;
   transition: background-color 400ms cubic-bezier(0.4, 0, 0.2, 1),
@@ -343,31 +343,31 @@ button {
 
 .menu-segment-pill {
   position: absolute;
-  top: 4px;
-  left: 4px;
-  height: calc(100% - 8px);
+  top: 3px;
+  left: 3px;
+  height: calc(100% - 6px);
   background: var(--brand-green);
-  border-radius: 7px;
+  border-radius: 6px;
   z-index: 0;
   pointer-events: none;
-  box-shadow: 0 2px 8px rgba(66, 100, 57, 0.35);
+  box-shadow: 0 1px 5px rgba(66, 100, 57, 0.30);
   transform: translateX(0);
-  transition: transform 420ms cubic-bezier(0.4, 0, 0.2, 1),
-              width 380ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1),
+              width 280ms cubic-bezier(0.4, 0, 0.2, 1);
   will-change: transform, width;
 }
 
 .menu-segment {
   position: relative;
   z-index: 1;
-  padding: 6px 16px;
-  border-radius: 7px;
+  padding: 5px 16px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 13px;
+  gap: 6px;
+  font-size: 12.5px;
   font-weight: 500;
-  line-height: 1.2;
+  line-height: 1.25;
   border: none;
   background: transparent;
   color: var(--text-secondary);
@@ -375,8 +375,8 @@ button {
   user-select: none;
   white-space: nowrap;
   transform: scale(1);
-  transition: color 300ms cubic-bezier(0.4, 0, 0.2, 1),
-              transform 160ms ease-out;
+  transition: color 240ms cubic-bezier(0.4, 0, 0.2, 1),
+              transform 140ms ease-out;
 }
 
 .menu-segment:hover:not([aria-pressed="true"]) {
@@ -389,23 +389,24 @@ button {
 
 .menu-segment:active {
   transform: scale(0.95);
-  transition: color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+  transition: color 240ms cubic-bezier(0.4, 0, 0.2, 1),
               transform 80ms ease;
 }
 
 .menu-segment-icon {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   display: grid;
   place-items: center;
   flex: none;
 }
 
-.menu-segment-icon svg { display: block; width: 15px; height: 15px; }
+.menu-segment-icon svg { display: block; width: 14px; height: 14px; }
 
 .menu-segment-label {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
+  letter-spacing: 0.005em;
 }
 
 /* ---- Find toggle button in toolbar bar ---- */
@@ -414,11 +415,16 @@ button {
   flex: none;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: var(--radius-control);
   color: var(--text-secondary);
   transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.find-toggle-chrome-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
 .find-toggle-chrome-btn:hover {
@@ -440,14 +446,14 @@ button {
   flex: none;
   display: block;
   width: 1px;
-  height: 20px;
+  height: 18px;
   background: var(--border);
 }
 
 @container (max-width: 580px) {
   .app-menu-bar { padding-right: var(--space-2); }
   .menu-segment-label { display: none; }
-  .menu-segment { padding: 6px 10px; }
+  .menu-segment { padding: 4px 8px; }
 }
 
 /* ---- Tab bar (DESIGN_TOKENS.md §3 interface tokens) ---- */
@@ -457,14 +463,14 @@ button {
   display: flex;
   align-items: flex-end;
   background: var(--sidebar-bg);
-  min-height: 34px;
+  min-height: 30px;
   border-bottom: 1px solid var(--border);
   overflow-x: auto;
   scrollbar-width: none; /* chrome strip, not a scroll region */
 }
 
 .tab {
-  height: 34px;
+  height: 30px;
   flex: none;
   display: flex;
   align-items: center;
@@ -473,12 +479,12 @@ button {
   background: var(--tab-inactive-bg);
   border: 1px solid var(--border);
   border-bottom: none;
-  border-radius: 6px 6px 0 0;
-  font-size: 13px;
+  border-radius: 5px 5px 0 0;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
-  max-width: 220px;
+  max-width: 210px;
   min-width: 0;
   user-select: none;
 }
@@ -550,12 +556,12 @@ button {
 .tab-close:hover { background: var(--toolbar-hover); color: var(--text-primary); }
 
 .tab-new {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   flex: none;
   display: grid;
   place-items: center;
-  border-radius: 6px;
+  border-radius: 5px;
   background: var(--surface-hover);
   color: var(--text-muted);
   line-height: 1;
@@ -1106,6 +1112,11 @@ button {
   background: var(--focus-mode-bg) !important;
 }
 
+/* Hide the gutter rule in focus mode — no visual noise */
+.shell.is-focus .editor-surface {
+  border-left-color: transparent !important;
+}
+
 .shell.is-focus .cm-scroller {
   overflow-y: scroll !important;
 }
@@ -1288,10 +1299,34 @@ button {
   scrollbar-gutter: stable;
 }
 
+.cm-editor:focus,
+.cm-editor:focus-visible,
+.cm-content:focus,
+.cm-content:focus-visible,
+.cm-scroller:focus,
+.cm-scroller:focus-visible {
+  outline: none !important;
+}
+
+.cm-editor .cm-content {
+  flex-grow: 0 !important;
+  width: 100%;
+  max-width: 88ch !important;
+  margin: 0 !important;
+  padding: 24px 40px 48px 24px !important;
+  outline: none !important;
+}
+
+@keyframes fm-cursor-blink {
+  0%, 42% { opacity: 1; }
+  55%, 88% { opacity: 0.12; }
+  100% { opacity: 1; }
+}
+
 /* Container query responsiveness: fluid clamping at narrow split widths (Dynamic UI Engine) */
 @container editor (max-width: 480px) {
-  .cm-content {
-    padding: var(--space-4) var(--space-3) !important;
+  .cm-editor .cm-content {
+    padding: var(--space-4) var(--space-4) var(--space-6) var(--space-4) !important;
   }
 }
 
@@ -1876,19 +1911,21 @@ button {
 /* ---- Status bar ---- */
 
 .statusbar {
-  flex: 0 0 28px;
+  flex: 0 0 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 28px;
-  min-height: 28px;
-  max-height: 28px;
+  width: 100%;
+  height: 16px;
+  min-height: 16px;
+  max-height: 16px;
   padding: 0 var(--space-3);
   background: var(--sidebar-bg);
   border-top: 1px solid var(--border);
   font-size: var(--text-xs);
   color: var(--text-muted);
   transition: background var(--transition-base);
+  overflow: hidden;
 }
 
 /* Save feedback = status surface takes the --success tone for a beat. One signal, no toast. */

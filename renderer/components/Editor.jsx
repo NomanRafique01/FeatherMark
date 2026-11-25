@@ -6,8 +6,8 @@
 import { h } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { EditorState, EditorSelection } from '@codemirror/state';
-import { EditorView, keymap } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap, indentMore, indentLess } from '@codemirror/commands';
+import { EditorView, keymap, drawSelection } from '@codemirror/view';
+import { defaultKeymap, history, historyKeymap, indentMore, indentLess, undo, redo } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
@@ -41,7 +41,7 @@ const featherMarkTheme = EditorView.theme({
     color: 'var(--text-primary)',
     backgroundColor: 'var(--editor-bg)',
     fontFamily: 'var(--font-editor)',
-    fontSize: 'var(--text-base)',
+    fontSize: 'var(--text-editor)',
     outline: 'none',
   },
   '.cm-scroller': {
@@ -52,17 +52,31 @@ const featherMarkTheme = EditorView.theme({
     scrollbarGutter: 'stable',
   },
   '.cm-content': {
-    padding: 'var(--space-8) var(--space-6)',
-    maxWidth: '80ch',
-    margin: '0 auto',
-    caretColor: 'var(--cursor)',
+    padding: '24px 40px 48px 24px',
+    maxWidth: '88ch',
+    margin: '0',
+    outline: 'none',
+    caretColor: 'transparent', // rendered via drawSelection() + .cm-cursor
   },
   '.cm-line': {
     padding: '0',
   },
+  // Custom cursor: crisp 2.5px rounded bar, theme-matched green, soft glow & smooth blink
+  '.cm-cursor, .cm-dropCursor': {
+    borderLeft: '2.5px solid var(--cursor)',
+    borderRadius: '1.5px',
+    marginLeft: '-1px',
+    boxShadow: '0 0 8px color-mix(in srgb, var(--cursor) 32%, transparent)',
+    animation: 'fm-cursor-blink 1.05s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+    willChange: 'opacity',
+  },
   '&.cm-focused .cm-cursor': {
     borderLeftColor: 'var(--cursor)',
-    borderLeftWidth: '2px',
+    borderLeftWidth: '2.5px',
+  },
+  // Hide cursor when editor is not focused — no stray line on line 1
+  '&:not(.cm-focused) .cm-cursor': {
+    display: 'none',
   },
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {
     backgroundColor: 'var(--selection) !important',
@@ -359,6 +373,14 @@ export function Editor({
             view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '' })) });
           }
         },
+        undo() {
+          const view = viewRef.current;
+          if (view) { undo(view); view.focus(); }
+        },
+        redo() {
+          const view = viewRef.current;
+          if (view) { redo(view); view.focus(); }
+        },
       };
     }
   }, [editorHandleRef]);
@@ -386,7 +408,12 @@ export function Editor({
           return true;
         },
       },
-      ...historyKeymap,
+      // Undo/redo primary shortcuts (Mod-z, Mod-y) are handled by the window-level
+      // keydown handler in app.jsx so they work consistently via both keyboard and
+      // the native Edit menu. We keep the rest of historyKeymap (Mod-u undo selection,
+      // Alt-u redo selection) but drop Mod-z and Mod-y to avoid double-dispatch when
+      // the editor has focus.
+      ...historyKeymap.filter((b) => b.key !== 'Mod-z' && b.key !== 'Mod-y'),
       ...defaultKeymap,
     ];
 
@@ -452,6 +479,7 @@ export function Editor({
         markdown(),
         syntaxHighlighting(featherMarkHighlightStyle),
         EditorView.lineWrapping,
+        drawSelection({ cursorBlinkRate: 0 }),
         featherMarkTheme,
         autoPairHandler,
         search({ top: false }),
@@ -469,17 +497,18 @@ export function Editor({
     viewRef.current = view;
     currentTabIdRef.current = tabId;
 
-    // Restore initial cursor and scroll
+    // Restore initial cursor, scroll, and focus editor so cursor is immediately active
     if (initialCursor > 0 && initialCursor <= view.state.doc.length) {
       view.dispatch({
         selection: EditorSelection.cursor(initialCursor),
       });
     }
-    if (initialScroll > 0) {
-      requestAnimationFrame(() => {
-        if (view.scrollDOM) view.scrollDOM.scrollTop = initialScroll;
-      });
-    }
+    requestAnimationFrame(() => {
+      if (view.scrollDOM && initialScroll > 0) {
+        view.scrollDOM.scrollTop = initialScroll;
+      }
+      view.focus();
+    });
 
     return () => {
       if (editorScrollRaf !== null) cancelAnimationFrame(editorScrollRaf);
@@ -514,11 +543,35 @@ export function Editor({
         if (view.scrollDOM) {
           view.scrollDOM.scrollTop = initialScroll;
         }
+        view.focus();
       });
     }
   }, [tabId, initialText, initialCursor, initialScroll]);
 
-  return h('div', { class: 'editor-pane-container' },
+  // Click anywhere in the pane → place cursor at nearest doc position and focus
+  function handlePaneMouseDown(e) {
+    const view = viewRef.current;
+    if (!view) return;
+
+    // If the click is already inside the CodeMirror content DOM, let CM handle it
+    if (view.contentDOM.contains(e.target)) return;
+
+    // Prevent default only when we're taking over (empty-space clicks)
+    e.preventDefault();
+
+    // posAtCoords returns the character offset nearest to the click coordinates.
+    // Fall back to end-of-doc when outside the rendered text area.
+    const pos = view.posAtCoords({ x: e.clientX, y: e.clientY }, false);
+    const safePos = pos !== null ? pos : view.state.doc.length;
+
+    view.dispatch({
+      selection: EditorSelection.cursor(safePos),
+      scrollIntoView: true,
+    });
+    view.focus();
+  }
+
+  return h('div', { class: 'editor-pane-container', onMouseDown: handlePaneMouseDown },
     h('div', { ref: containerRef, class: 'editor-cm-wrapper' })
   );
 }

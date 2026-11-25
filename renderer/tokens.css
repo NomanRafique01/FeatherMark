@@ -80,9 +80,10 @@
   --space-16: 64px;
 
   /* Type: Minor Third (1.2), five sizes ceiling. Fluid within a tight desktop range. */
-  --text-xs:  clamp(0.72rem, 0.71rem + 0.08vw, 0.78rem);   /* ~12–12.5px muted meta */
-  --text-sm:  clamp(0.79rem, 0.78rem + 0.10vw, 0.84rem);   /* ~13px UI chrome */
-  --text-base: clamp(0.90rem, 0.89rem + 0.13vw, 0.97rem);  /* ~15px UI body */
+  --text-xs:  clamp(0.71rem, 0.70rem + 0.06vw, 0.75rem);   /* ~11.5–12px muted meta */
+  --text-sm:  clamp(0.76rem, 0.75rem + 0.08vw, 0.80rem);   /* ~12–12.8px UI chrome */
+  --text-editor: 13.5px;                                   /* crisp desktop monospace editor */
+  --text-base: clamp(0.88rem, 0.87rem + 0.10vw, 0.94rem);  /* ~14–15px prose body */
   --text-lg:  clamp(1.09rem, 1.06rem + 0.20vw, 1.19rem);   /* ~18px section titles */
   --text-xl:  clamp(1.32rem, 1.27rem + 0.32vw, 1.45rem);   /* ~22px app mark title */
 
@@ -142,6 +143,7 @@
   --cursor: #587858;
   --search-highlight: #F1DDAE;
   --focus-mode-bg: #FAF9F5;
+  --editor-gutter-rule: #D6DDCC; /* left boundary rule — muted accent-green tint */
 }
 
 [data-theme="dark"] {
@@ -167,4 +169,5 @@
   --cursor: #A0BC98;
   --search-highlight: #665638;
   --focus-mode-bg: #252923;
+  --editor-gutter-rule: #3A4238; /* left boundary rule — muted accent-green tint (dark) */
 }

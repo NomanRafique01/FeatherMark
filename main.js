@@ -457,7 +457,17 @@ function buildMenu() {
     {
       label: 'Edit',
       submenu: [
-        { role: 'undo' }, { role: 'redo' }, { type: 'separator' },
+        {
+          label: 'Undo',
+          accelerator: 'CmdOrCtrl+Z',
+          click: () => sendToRenderer('feathermark:menu', 'undo'),
+        },
+        {
+          label: 'Redo',
+          accelerator: 'CmdOrCtrl+Y',
+          click: () => sendToRenderer('feathermark:menu', 'redo'),
+        },
+        { type: 'separator' },
         { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
         { type: 'separator' },
         { label: 'Find and replace', accelerator: 'CmdOrCtrl+H', enabled: true, click: () => sendToRenderer('feathermark:menu', 'find-replace') },

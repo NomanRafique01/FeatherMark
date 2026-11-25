@@ -148,10 +148,9 @@ function useSlidingPill(value) {
     const syncPill = () => {
       const activeBtn = container.querySelector('[aria-pressed="true"]');
       if (!activeBtn) return;
-      const rect = activeBtn.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-      pill.style.transform = `translateX(${rect.left - containerRect.left - 5}px)`;
-      pill.style.width = `${rect.width}px`;
+      const padLeft = parseFloat(getComputedStyle(container).paddingLeft) || 0;
+      pill.style.transform = `translateX(${activeBtn.offsetLeft - padLeft}px)`;
+      pill.style.width = `${activeBtn.offsetWidth}px`;
     };
 
     syncPill();

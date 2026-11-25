@@ -258,12 +258,14 @@ function App() {
   function setChromeMode(mode) {
     if (mode === 'focus') {
       if (!focusMode) toggleFocusMode();
+      focusEditor();
       return;
     }
     if (focusMode) toggleFocusMode();
     const next = mode === 'editor' ? 'editor-only' : mode === 'preview' ? 'preview-only' : 'split';
     setViewMode(next);
     window.feathermark.setSettings('viewMode', next);
+    if (mode === 'editor' || mode === 'split') focusEditor();
   }
 
   function runChromeMenuAction(action) {
@@ -450,6 +452,7 @@ function App() {
     }
     setActiveId(id);
     window.feathermark.tabActivated(id);
+    focusEditor();
   }
 
   async function addTab(tab, register = true) {
@@ -758,6 +761,8 @@ function App() {
       else if (action === 'toggle-toolbar') toggleToolbar();
       else if (action === 'toggle-focus') toggleFocusMode();
       else if (action === 'find-replace') setFindOpen(true);
+      else if (action === 'undo') { if (editorHandleRef.current) editorHandleRef.current.undo(); }
+      else if (action === 'redo') { if (editorHandleRef.current) editorHandleRef.current.redo(); }
     }));
 
     window.feathermark.getSettings('viewMode', 'split').then((v) => {
@@ -849,6 +854,19 @@ function App() {
         if (key === 'f' || key === 'h') {
           e.preventDefault();
           setFindOpen(true);
+        } else if (key === 'z' && !e.shiftKey) {
+          // Ctrl+Z — undo. Route to CodeMirror (native Electron role is replaced;
+          // we must handle it here to avoid execCommand clobbering CM6's history).
+          e.preventDefault();
+          if (editorHandleRef.current) editorHandleRef.current.undo();
+        } else if (key === 'z' && e.shiftKey) {
+          // Ctrl+Shift+Z — redo (macOS standard; also common on Windows)
+          e.preventDefault();
+          if (editorHandleRef.current) editorHandleRef.current.redo();
+        } else if (key === 'y' && !e.shiftKey) {
+          // Ctrl+Y — redo (Windows standard shortcut)
+          e.preventDefault();
+          if (editorHandleRef.current) editorHandleRef.current.redo();
         } else if (key === 's' && !e.shiftKey) {
           e.preventDefault();
           saveActive();
