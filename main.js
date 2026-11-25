@@ -1,7 +1,7 @@
 // FeatherMark — Electron main process
 // Owns ALL filesystem access. Renderer talks only through preload.js (window.feathermark.*).
 
-const { app, BrowserWindow, Menu, dialog, nativeTheme, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, dialog, nativeTheme, ipcMain, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
@@ -53,12 +53,48 @@ function refreshDirtyFlag() {
   sendToRenderer('feathermark:dirty-changed', dirtyTabs().length > 0);
 }
 
+// Clamp a window's bounds so it stays fully within the display it's on.
+// Called on restore so a saved position never ends up off-screen (e.g. after
+// moving to a monitor with different resolution or DPI).
+function clampBoundsToDisplay(bounds) {
+  // Find the display that contains the top-left corner of the window, falling
+  // back to the primary display if the point is not on any screen.
+  const display =
+    screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y });
+  const wa = display.workArea; // excludes taskbar
+  const w = Math.min(bounds.width,  wa.width);
+  const h = Math.min(bounds.height, wa.height);
+  const x = Math.max(wa.x, Math.min(bounds.x, wa.x + wa.width  - w));
+  const y = Math.max(wa.y, Math.min(bounds.y, wa.y + wa.height - h));
+  return { x, y, width: w, height: h };
+}
+
 function createWindow() {
+  // Size the window as ~80% of the primary display's work area on first launch,
+  // then honour whatever the user saved in settings.
+  const primaryWorkArea = screen.getPrimaryDisplay().workArea;
+  const defaultWidth  = Math.round(primaryWorkArea.width  * 0.80);
+  const defaultHeight = Math.round(primaryWorkArea.height * 0.80);
+
+  // Restore saved bounds if they exist; clamp to the current display so the
+  // window is never placed off-screen after a monitor change.
+  const savedBounds = settings.get('windowBounds', null);
+  let initialBounds = savedBounds
+    ? clampBoundsToDisplay(savedBounds)
+    : {
+        x: primaryWorkArea.x + Math.round((primaryWorkArea.width  - defaultWidth)  / 2),
+        y: primaryWorkArea.y + Math.round((primaryWorkArea.height - defaultHeight) / 2),
+        width:  defaultWidth,
+        height: defaultHeight,
+      };
+
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    ...initialBounds,
+    // Minimum size: enough to show all chrome without clipping.
+    // 768px wide keeps the toolbar + tab bar readable; 500px tall fits
+    // the header + tab bar + 1 line of content + status bar comfortably.
     minWidth: 768,
-    minHeight: 480,
+    minHeight: 500,
     frame: false,
     backgroundColor: THEME_BG[effectiveTheme()],
     show: false,
@@ -71,8 +107,21 @@ function createWindow() {
     },
   });
 
+  // Persist window bounds every time the user moves or resizes.
+  const saveBounds = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    // Don't save maximised/minimised state — restore a sensible normal size.
+    if (!mainWindow.isMaximized() && !mainWindow.isMinimized()) {
+      settings.set('windowBounds', mainWindow.getBounds());
+    }
+  };
+  mainWindow.on('resized', saveBounds);
+  mainWindow.on('moved',   saveBounds);
+
   mainWindow.once('ready-to-show', () => {
-    mainWindow.maximize();
+    // Start maximised if no prior position was saved, otherwise restore to the
+    // saved (clamped) bounds and let the user decide to maximise.
+    if (!savedBounds) mainWindow.maximize();
     mainWindow.show();
     const notice = settings.takeRecoveryNotice();
     if (notice) sendToRenderer('feathermark:recovery-notice', notice);
