@@ -64,7 +64,11 @@ export function TabBar({ tabs, activeId, onSelect, onClose, onNew, onReorder }) 
         onClick: () => onSelect(tab.id),
         onKeyDown: (e) => handleKeyDown(e, tab.id, idx),
         onMouseDown: (e) => {
-          if (e.button === 1) e.preventDefault(); // prevent autoscroll on middle click
+          if (e.button === 1) {
+            e.preventDefault(); // prevent autoscroll on middle click
+          } else if (e.button === 0 && !e.target.closest('.tab-close')) {
+            onSelect(tab.id);
+          }
         },
         onAuxClick: (e) => {
           if (e.button === 1) {

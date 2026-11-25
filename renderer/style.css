@@ -422,6 +422,7 @@ button {
   align-items: flex-end;
   background: var(--sidebar-bg);
   min-height: 34px;
+  border-bottom: 1px solid var(--border);
   overflow-x: auto;
   scrollbar-width: none; /* chrome strip, not a scroll region */
 }
@@ -1159,7 +1160,7 @@ button {
 }
 
 .preview-prose {
-  max-width: 72ch;
+  max-width: clamp(72ch, 84cqi, 1080px);
   margin: 0 auto;
   padding: var(--space-8) var(--space-6);
   font-family: var(--font-prose);
@@ -1167,6 +1168,8 @@ button {
   line-height: 1.6;
   color: var(--text-primary);
   word-break: break-word;
+  transition: max-width 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              padding 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @container preview (max-width: 520px) {
@@ -1282,6 +1285,7 @@ button {
 }
 
 .preview-prose pre code {
+  display: block;
   font-family: var(--font-editor);
   font-size: 0.85em;
   line-height: 1.5;
@@ -1299,6 +1303,12 @@ button {
   margin: 1.2em 0;
   font-size: var(--text-sm);
   line-height: 1.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-prose {
+    transition: none;
+  }
 }
 
 .preview-prose th,

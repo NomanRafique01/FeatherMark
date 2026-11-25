@@ -15,7 +15,6 @@ import { TabBar } from './components/TabBar.jsx';
 import { Editor } from './components/Editor.jsx';
 import { Preview } from './components/Preview.jsx';
 import { Outline } from './components/Outline.jsx';
-import { StatusBar } from './components/StatusBar.jsx';
 import { Toolbar } from './components/Toolbar.jsx';
 import { FindReplace } from './components/FindReplace.jsx';
 import { AppMenuBar } from './components/AppMenuBar.jsx';
@@ -582,6 +581,7 @@ function App() {
   async function restoreSession() {
     const session = await window.feathermark.getSession();
     if (!session || session.tabs.length === 0) { await newFile(); return; } // honest start: one empty tab, no void
+    const seenIds = new Set();
     const restored = [];
     for (const t of session.tabs) {
       let text = t.text;
@@ -590,7 +590,14 @@ function App() {
         text = result.ok ? result.content : '';
         if (!result.ok) setNotice({ text: result.error, tone: 'danger', path: t.path });
       }
-      restored.push({ id: t.id, path: t.path || null,
+      const m = typeof t.id === 'string' && /^t(\d+)$/.exec(t.id);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (n >= nextTabId) nextTabId = n + 1;
+      }
+      const id = (!t.id || seenIds.has(t.id)) ? newTabId() : t.id;
+      seenIds.add(id);
+      restored.push({ id, path: t.path || null,
         name: t.path ? basename(t.path) : 'Untitled',
         text: text || '', dirty: !!t.dirty, cursor: t.cursor || 0, scroll: t.scroll || 0, previewScroll: t.previewScroll || 0 });
     }
@@ -829,8 +836,6 @@ function App() {
     };
   }, []);
 
-  const wordCount = active ? (active.text.match(/\S+/g) || []).length : 0;
-
   // ---- render ----
 
   return h('div', { class: 'shell' + (dropping ? ' is-dropping' : '') + (focusMode ? ' is-focus' : '') },
@@ -941,11 +946,9 @@ function App() {
       primaryLabel: closeConfirm.primaryLabel,
       onResolve: closeConfirm.resolve,
     }),
-    h(StatusBar, {
-      active,
-      cursorPos,
-      savedBeat,
-      focusMode,
+    h('footer', {
+      class: 'statusbar' + (savedBeat ? ' is-saved' : '') + (focusMode ? ' is-focus' : ''),
+      'aria-hidden': 'true',
     })
   );
 }
