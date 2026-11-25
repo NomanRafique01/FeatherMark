@@ -1,10 +1,31 @@
 // FeatherMark — TabBar component (Phase 04).
-// Tabs model: active (--editor-bg + 2px --accent indicator), inactive (--sidebar-bg),
-// unsaved dot (--warning), accessible close button with 44px hit-box, drag-reorder,
-// middle-click close, "+" new tab.
+// Tabs model: active tab joins the editor surface (green top border, open bottom edge),
+// inactive tabs recessed; unsaved dot + always-visible close button; drag-reorder,
+// middle-click close, "+" new tab. All glyphs are inline SVG — no unicode icons.
 
 import { h } from 'preact';
 import { useState } from 'preact/hooks';
+
+function TabIcon({ children, size = 12 }) {
+  return h('svg', {
+    width: String(size), height: String(size), viewBox: '0 0 16 16', fill: 'none',
+    stroke: 'currentColor', 'stroke-width': '1.4', 'stroke-linecap': 'round',
+    'stroke-linejoin': 'round', 'aria-hidden': 'true',
+  }, children);
+}
+
+const DocIcon = () => h(TabIcon, null,
+  h('path', { d: 'M3.5 2h6l3 3v9h-9V2Z' }),
+  h('path', { d: 'M9.5 2v3h3' }),
+);
+
+const CloseIcon = () => h(TabIcon, null,
+  h('path', { d: 'M4.5 4.5l7 7M11.5 4.5l-7 7' }),
+);
+
+const PlusIcon = () => h(TabIcon, { size: 14 },
+  h('path', { d: 'M8 4v8M4 8h8' }),
+);
 
 export function TabBar({ tabs, activeId, onSelect, onClose, onNew, onReorder }) {
   const [draggingId, setDraggingId] = useState(null);
@@ -79,6 +100,7 @@ export function TabBar({ tabs, activeId, onSelect, onClose, onNew, onReorder }) 
           setDropTargetId(null);
         },
       },
+        h('span', { class: 'tab-file-icon', 'aria-hidden': 'true' }, h(DocIcon)),
         h('span', { class: 'tab-name' }, tab.name),
         tab.dirty && h('span', {
           class: 'tab-dirty',
@@ -94,7 +116,7 @@ export function TabBar({ tabs, activeId, onSelect, onClose, onNew, onReorder }) 
             e.stopPropagation();
             onClose(tab.id);
           },
-        }, '×'),
+        }, h(CloseIcon)),
       );
     }),
     h('button', {
@@ -103,6 +125,6 @@ export function TabBar({ tabs, activeId, onSelect, onClose, onNew, onReorder }) 
       title: 'New file (Ctrl+N)',
       tabIndex: 0,
       onClick: onNew,
-    }, '+'),
+    }, h(PlusIcon)),
   );
 }

@@ -115,7 +115,10 @@ export function FindReplace({
         title: 'Close (Esc)',
         'aria-label': 'Close find and replace',
         onClick: onClose,
-      }, '×')
+      }, h('svg', {
+        width: '11', height: '11', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+        'stroke-width': '1.6', 'stroke-linecap': 'round', 'aria-hidden': 'true',
+      }, h('path', { d: 'M4.5 4.5l7 7M11.5 4.5l-7 7' })))
     ),
     h('div', { class: 'replace-row' },
       h('input', {

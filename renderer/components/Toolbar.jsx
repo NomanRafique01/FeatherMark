@@ -229,6 +229,9 @@ export function Toolbar({
       'aria-label': 'Hide toolbar',
       tabIndex: 0,
       onClick: onClose,
-    }, '×')
+    }, h('svg', {
+      width: '12', height: '12', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+      'stroke-width': '1.5', 'stroke-linecap': 'round', 'aria-hidden': 'true',
+    }, h('path', { d: 'M4.5 4.5l7 7M11.5 4.5l-7 7' })))
   );
 }

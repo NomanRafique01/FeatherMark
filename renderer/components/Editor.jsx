@@ -47,7 +47,9 @@ const featherMarkTheme = EditorView.theme({
   '.cm-scroller': {
     fontFamily: 'inherit',
     lineHeight: '1.6',
-    overflow: 'auto',
+    overflowY: 'scroll',
+    overflowX: 'auto',
+    scrollbarGutter: 'stable',
   },
   '.cm-content': {
     padding: 'var(--space-8) var(--space-6)',
