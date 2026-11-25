@@ -340,12 +340,28 @@ ipcMain.handle('feathermark:window-control', (_e, action) => {
 let quitResolved = false;
 let isClosingOrQuitting = false;
 
+function promptRenderer(requestChannel, doneChannel, payload) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finishPrompt = (choice) => {
+      if (done) return;
+      done = true;
+      ipcMain.removeListener(doneChannel, onChoice);
+      resolve(choice);
+    };
+    const onChoice = (_e, choice) => finishPrompt(choice);
+    ipcMain.on(doneChannel, onChoice);
+    mainWindow.once('closed', () => finishPrompt(2));
+    sendToRenderer(requestChannel, payload);
+  });
+}
+
 async function checkUnsavedBeforeExit(event) {
   if (quitResolved || !mainWindow || mainWindow.isDestroyed() || tabs.size === 0) return;
 
   const unsaved = dirtyTabs();
-  if (unsaved.length === 0) {
-    quitResolved = true; // nothing to confirm; the debounced snapshot already persisted
+  if (tabs.size === 1 && unsaved.length === 0) {
+    quitResolved = true; // single clean tab: close immediately
     return;
   }
 
@@ -353,23 +369,41 @@ async function checkUnsavedBeforeExit(event) {
   if (isClosingOrQuitting) return;
   isClosingOrQuitting = true;
 
+  if (tabs.size > 1) {
+    const tabsChoice = await promptRenderer(
+      'feathermark:confirm-tabs-exit-request',
+      'feathermark:confirm-tabs-exit-done',
+      { count: tabs.size },
+    );
+    if (tabsChoice === 2) {
+      isClosingOrQuitting = false;
+      return; // cancel — stay in app
+    }
+    if (tabsChoice === 1) {
+      isClosingOrQuitting = false;
+      sendToRenderer('feathermark:menu', 'close-tab');
+      return; // keep app open and close only the current tab
+    }
+    if (unsaved.length === 0) {
+      quitResolved = true;
+      isClosingOrQuitting = false;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.destroy();
+      }
+      app.quit();
+      return;
+    }
+  }
+
   const names = unsaved.map(([, t]) => (t.path ? path.basename(t.path) : 'Untitled'));
-  const response = await new Promise((resolve) => {
-    let done = false;
-    const finishPrompt = (choice) => {
-      if (done) return;
-      done = true;
-      ipcMain.removeListener('feathermark:confirm-exit-done', onChoice);
-      resolve(choice);
-    };
-    const onChoice = (_e, choice) => finishPrompt(choice);
-    ipcMain.on('feathermark:confirm-exit-done', onChoice);
-    mainWindow.once('closed', () => finishPrompt(2));
-    sendToRenderer('feathermark:confirm-exit-request', {
+  const response = await promptRenderer(
+    'feathermark:confirm-exit-request',
+    'feathermark:confirm-exit-done',
+    {
       count: unsaved.length,
       name: names[0],
-    });
-  });
+    },
+  );
 
   if (response === 2) {
     isClosingOrQuitting = false;

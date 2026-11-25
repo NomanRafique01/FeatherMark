@@ -72,6 +72,7 @@ contextBridge.exposeInMainWorld('feathermark', {
 
   saveAllDone: (ok) => ipcRenderer.send('feathermark:save-all-done', ok),
   confirmExitDone: (choice) => ipcRenderer.send('feathermark:confirm-exit-done', choice),
+  confirmTabsExitDone: (choice) => ipcRenderer.send('feathermark:confirm-tabs-exit-done', choice),
 
   onThemeChanged: (cb) => relay('feathermark:theme-changed', cb),
   onMenu: (cb) => relay('feathermark:menu', cb),
@@ -81,4 +82,5 @@ contextBridge.exposeInMainWorld('feathermark', {
   onSnapshotRequest: (cb) => relay('feathermark:snapshot-request', cb),
   onSaveAllRequest: (cb) => relay('feathermark:save-all-request', cb),
   onConfirmExitRequest: (cb) => relay('feathermark:confirm-exit-request', cb),
+  onConfirmTabsExitRequest: (cb) => relay('feathermark:confirm-tabs-exit-request', cb),
 });

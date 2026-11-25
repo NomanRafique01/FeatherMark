@@ -133,7 +133,15 @@ function RecentFiles({ recents, onOpen, onForget, onClearMissing }) {
 
 // ---- Confirm close dialog ----
 
-function ConfirmCloseDialog({ title, description, primaryLabel, onResolve }) {
+function ConfirmCloseDialog({
+  title,
+  description,
+  primaryLabel,
+  cancelLabel = 'Cancel',
+  cancelChoice = 2,
+  discardLabel = 'Don’t save',
+  onResolve,
+}) {
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -187,16 +195,16 @@ function ConfirmCloseDialog({ title, description, primaryLabel, onResolve }) {
         ),
       ),
       h('div', { class: 'confirm-actions' },
-        h('button', {
+        discardLabel !== null && h('button', {
           type: 'button',
           class: 'confirm-btn is-discard',
           onClick: () => onResolve(1),
-        }, 'Don’t save'),
+        }, discardLabel),
         h('button', {
           type: 'button',
           class: 'confirm-btn is-cancel',
-          onClick: () => onResolve(2),
-        }, 'Cancel'),
+          onClick: () => onResolve(cancelChoice),
+        }, cancelLabel),
         h('button', {
           type: 'button',
           class: 'confirm-btn is-primary',
@@ -533,12 +541,15 @@ function App() {
     }
   }
 
-  function requestCloseConfirm({ title, description, primaryLabel }) {
+  function requestCloseConfirm({ title, description, primaryLabel, cancelLabel, cancelChoice, discardLabel }) {
     return new Promise((resolve) => {
       setCloseConfirm({
         title,
         description,
         primaryLabel,
+        cancelLabel,
+        cancelChoice,
+        discardLabel,
         resolve: (choice) => {
           setCloseConfirm(null);
           resolve(choice);
@@ -569,9 +580,10 @@ function App() {
       }
     }
     setTabs((ts) => {
+      const idx = ts.findIndex((t) => t.id === tabId);
       const rest = ts.filter((t) => t.id !== tabId);
       if (rest.length === 0) setActiveId(null);
-      else if (stateRef.current.activeId === tabId) focusTab(rest[rest.length - 1].id);
+      else if (stateRef.current.activeId === tabId) focusTab(rest[Math.max(0, idx - 1)].id);
       return rest;
     });
     await window.feathermark.tabClosed(tabId);
@@ -781,6 +793,17 @@ function App() {
     off.push(window.feathermark.onDropOpen((p) => openPath(p)));
     off.push(window.feathermark.onSnapshotRequest(() => takeSnapshot()));
     off.push(window.feathermark.onSaveAllRequest((tabIds) => saveAll(tabIds)));
+    off.push(window.feathermark.onConfirmTabsExitRequest(async ({ count }) => {
+      const choice = await requestCloseConfirm({
+        title: 'Do you want to close all tabs or the current tab?',
+        description: `You have ${count} tabs open. Closing the current tab keeps FeatherMark open.`,
+        primaryLabel: 'Close all tabs',
+        cancelLabel: 'Close current tab',
+        cancelChoice: 1,
+        discardLabel: null,
+      });
+      window.feathermark.confirmTabsExitDone(choice);
+    }));
     off.push(window.feathermark.onConfirmExitRequest(async ({ count, name }) => {
       const choice = await requestCloseConfirm({
         title: count === 1 ? `Save changes to “${name}”?` : `Save changes to ${count} unsaved files?`,
@@ -1079,6 +1102,9 @@ function App() {
       title: closeConfirm.title,
       description: closeConfirm.description,
       primaryLabel: closeConfirm.primaryLabel,
+      cancelLabel: closeConfirm.cancelLabel,
+      cancelChoice: closeConfirm.cancelChoice,
+      discardLabel: closeConfirm.discardLabel,
       onResolve: closeConfirm.resolve,
     }),
     h('footer', {
