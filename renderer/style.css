@@ -1487,11 +1487,66 @@ button {
   background: var(--editor-bg);
   outline: none;
   cursor: text;
+  caret-color: var(--accent);
+  text-rendering: optimizeLegibility;
 }
 
 .rich-editor-container:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+/* Plain mode is a rendered document, but it still needs editor affordances.
+   Keep the page calm while making the active surface and editable cells clear. */
+.editor-pane-container.is-plain .rich-editor-container {
+  padding-bottom: clamp(2rem, 5vw, 4rem);
+}
+
+.editor-pane-container.is-plain .rich-editor-container:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: -2px;
+}
+
+.editor-pane-container.is-plain .rich-editor-container table {
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.editor-pane-container.is-plain .rich-editor-container th,
+.editor-pane-container.is-plain .rich-editor-container td {
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.editor-pane-container.is-plain .rich-editor-container th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.editor-pane-container.is-plain .rich-editor-container td:focus,
+.editor-pane-container.is-plain .rich-editor-container th:focus,
+.editor-pane-container.is-plain .rich-editor-container td:focus-within,
+.editor-pane-container.is-plain .rich-editor-container th:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--accent-soft) 68%, var(--editor-bg));
+}
+
+.editor-pane-container.is-plain .rich-editor-container td > br:only-child,
+.editor-pane-container.is-plain .rich-editor-container th > br:only-child {
+  display: inline-block;
+  min-height: 1.45em;
+}
+
+@media (hover: hover) {
+  .editor-pane-container.is-plain .rich-editor-container td:hover,
+  .editor-pane-container.is-plain .rich-editor-container th:hover {
+    background: color-mix(in srgb, var(--surface-hover) 52%, transparent);
+  }
 }
 
 .cm-editor {

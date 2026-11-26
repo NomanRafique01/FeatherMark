@@ -611,7 +611,7 @@ export function Editor(props) {
     text: editorProps.initialText || '',
   };
 
-  return h('div', { class: 'editor-pane-container' },
+  return h('div', { class: `editor-pane-container is-${editorFormat}` },
     showEditorFormat && h('div', { class: 'editor-modebar' },
       h('span', { class: 'editor-modebar-label' }, 'Editing format'),
       h(EditorFormatToggle, { value: editorFormat, onChange: onEditorFormatChange }),

@@ -127,11 +127,156 @@ function serializeBlocks(parent) {
     if (tag === 'hr') return '---\n\n';
     if (tag === 'table' || tag === 'details') {
       const clone = node.cloneNode(true);
-      clone.querySelectorAll('[data-line]').forEach((element) => element.removeAttribute('data-line'));
+      clone.querySelectorAll('[data-line], [data-feathermark-grid]').forEach((element) => {
+        element.removeAttribute('data-line');
+        element.removeAttribute('data-feathermark-grid');
+      });
+      clone.removeAttribute('data-line');
+      clone.removeAttribute('data-feathermark-grid');
       return `${clone.outerHTML}\n\n`;
     }
     return serializeBlocks(node);
   }).join('');
+}
+
+function normalizeTables(root) {
+  if (!root) return;
+
+  root.querySelectorAll('table').forEach((table) => {
+    const rows = Array.from(table.querySelectorAll('tr'));
+    if (rows.length === 0) return;
+
+    const columnCount = Math.max(
+      1,
+      ...rows.map((row) => row.querySelectorAll(':scope > th, :scope > td').length),
+    );
+
+    rows.forEach((row) => {
+      const cells = Array.from(row.children).filter((child) => (
+        child.tagName && (child.tagName.toLowerCase() === 'th' || child.tagName.toLowerCase() === 'td')
+      ));
+      while (cells.length < columnCount) {
+        const cell = document.createElement(row.querySelector('th') ? 'th' : 'td');
+        cell.appendChild(document.createElement('br'));
+        row.appendChild(cell);
+        cells.push(cell);
+      }
+    });
+
+    table.setAttribute('data-feathermark-grid', String(columnCount));
+  });
+}
+
+function placeCaretAtEnd(element) {
+  if (!element) return;
+  element.focus();
+  const selection = document.getSelection && document.getSelection();
+  if (!selection) return;
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function createTableRow(row, columnCount) {
+  const nextRow = document.createElement('tr');
+  const useHeaders = row && row.querySelector('th');
+  for (let index = 0; index < columnCount; index += 1) {
+    const cell = document.createElement(useHeaders ? 'th' : 'td');
+    cell.appendChild(document.createElement('br'));
+    nextRow.appendChild(cell);
+  }
+  return nextRow;
+}
+
+function moveTableCaret(root, cell, backwards = false) {
+  const table = cell && cell.closest('table');
+  if (!table) return false;
+
+  const cells = Array.from(table.querySelectorAll('tr > th, tr > td'));
+  const currentIndex = cells.indexOf(cell);
+  if (currentIndex < 0) return false;
+
+  let target = cells[currentIndex + (backwards ? -1 : 1)];
+  if (!target && !backwards) {
+    const lastRow = cell.closest('tr');
+    const columnCount = Number(table.getAttribute('data-feathermark-grid')) || lastRow.children.length;
+    const nextRow = createTableRow(lastRow, columnCount);
+    lastRow.parentElement.appendChild(nextRow);
+    target = nextRow.firstElementChild;
+  }
+
+  if (!target) return false;
+  placeCaretAtEnd(target);
+  return true;
+}
+
+function runRichCommand(root, action) {
+  if (!root) return false;
+  root.focus();
+
+  const commands = {
+    bold: ['bold'],
+    italic: ['italic'],
+    strike: ['strikeThrough'],
+    bullet: ['insertUnorderedList'],
+    h1: ['formatBlock', 'h1'],
+    h2: ['formatBlock', 'h2'],
+    h3: ['formatBlock', 'h3'],
+    quote: ['formatBlock', 'blockquote'],
+    fence: ['formatBlock', 'pre'],
+    hr: ['insertHorizontalRule'],
+  };
+
+  if (commands[action]) {
+    const [command, value] = commands[action];
+    try {
+      document.execCommand(command, false, value);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  if (action === 'code') {
+    try {
+      document.execCommand('formatBlock', false, 'code');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  if (action === 'task') {
+    try {
+      document.execCommand('insertUnorderedList');
+      root.querySelectorAll('ul:not(.contains-task-list) > li').forEach((item) => {
+        if (!item.querySelector('input.task-list-item-checkbox')) {
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.className = 'task-list-item-checkbox';
+          checkbox.setAttribute('aria-label', 'Task');
+          item.prepend(checkbox);
+        }
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  if (action === 'table') {
+    const html = '<table><thead><tr><th>Column 1</th><th>Column 2</th></tr></thead><tbody><tr><td>Cell 1</td><td>Cell 2</td></tr></tbody></table><p><br></p>';
+    try {
+      document.execCommand('insertHTML', false, html);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  return false;
 }
 
 export function serializeRichMarkdown(root) {
@@ -166,6 +311,16 @@ export function RichEditor({
   const callbacksRef = useRef({ onChange, onCursorChange, onCursorInfoChange, onScrollChange, onEditorScroll });
   callbacksRef.current = { onChange, onCursorChange, onCursorInfoChange, onScrollChange, onEditorScroll };
 
+  function emitChange() {
+    const root = rootRef.current;
+    if (!root) return;
+    normalizeTables(root);
+    const source = serializeRichMarkdown(root);
+    lastSourceRef.current = source;
+    if (callbacksRef.current.onChange && source !== text) callbacksRef.current.onChange(source);
+    reportSelection();
+  }
+
   function reportSelection() {
     const root = rootRef.current;
     const info = root && selectionInfo(root);
@@ -179,6 +334,7 @@ export function RichEditor({
     if (!root) return;
     const scrollTop = preserveScroll ? root.scrollTop : 0;
     root.innerHTML = renderMarkdown(source, { filePath });
+    normalizeTables(root);
     root.scrollTop = preserveScroll ? scrollTop : initialScroll;
     lastSourceRef.current = source;
   }
@@ -224,14 +380,19 @@ export function RichEditor({
       focus() { if (rootRef.current) rootRef.current.focus(); },
       getScrollTop() { return rootRef.current ? rootRef.current.scrollTop : 0; },
       setScrollTop(top) { if (rootRef.current) rootRef.current.scrollTop = top; },
-      scrollToLine(line) {
+      scrollToLine(line, ratio = 0) {
         const root = rootRef.current;
         if (!root) return;
         const blocks = Array.from(root.querySelectorAll('[data-line]'));
         const target = blocks.find((block) => Number(block.getAttribute('data-line')) >= line) || blocks[blocks.length - 1];
-        if (target) root.scrollTop = Math.max(0, target.offsetTop - 16);
+        if (target) {
+          const maxScroll = Math.max(0, root.scrollHeight - root.clientHeight);
+          const targetTop = target.offsetTop - Math.round(root.clientHeight * 0.12) + (target.offsetHeight * Math.max(0, Math.min(1, ratio)));
+          root.scrollTop = Math.min(maxScroll, Math.max(0, targetTop));
+        }
       },
       jumpToPos() { if (rootRef.current) rootRef.current.focus(); },
+      format(action) { handleFormat(action); },
       setSearch() { return 0; },
       findNext() {},
       findPrev() {},
@@ -253,9 +414,42 @@ export function RichEditor({
       const visible = blocks.filter((block) => block.offsetTop <= root.scrollTop).pop();
       if (visible) callbacksRef.current.onEditorScroll({
         line: Number(visible.getAttribute('data-line')),
-        ratio: 0,
+        ratio: visible.offsetHeight > 0
+          ? Math.max(0, Math.min(1, (root.scrollTop - visible.offsetTop) / visible.offsetHeight))
+          : 0,
         scrollTop: root.scrollTop,
       });
+    }
+  }
+
+  function handleKeyDown(event) {
+    const root = rootRef.current;
+    const cell = event.target && event.target.closest && event.target.closest('td, th');
+    if (!root || !cell || !root.contains(cell)) return;
+
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      moveTableCaret(root, cell, event.shiftKey);
+      emitChange();
+      return;
+    }
+
+    // Keep Enter inside a cell as a line break. This prevents Chromium from
+    // creating an accidental table row and keeps every column on the same row.
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      document.execCommand('insertLineBreak');
+      emitChange();
+    }
+  }
+
+  function handleInput() {
+    emitChange();
+  }
+
+  function handleFormat(action) {
+    if (runRichCommand(rootRef.current, action)) {
+      requestAnimationFrame(() => emitChange());
     }
   }
 
@@ -263,10 +457,13 @@ export function RichEditor({
     ref: rootRef,
     class: 'rich-editor-container preview-prose',
     contentEditable: true,
-    spellCheck: false,
+    spellCheck: true,
     role: 'textbox',
     'aria-multiline': 'true',
-    'aria-label': 'Rendered Markdown editor',
+    'aria-label': 'Plain text editor',
+    onInput: handleInput,
+    onKeyDown: handleKeyDown,
+    onFocus: reportSelection,
     onScroll: handleScroll,
   });
 }
