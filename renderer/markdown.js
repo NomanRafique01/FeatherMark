@@ -139,6 +139,7 @@ function sanitizeHtmlFragment(raw, env) {
           continue;
         }
         node.setAttribute('src', src);
+        node.setAttribute('data-feathermark-src', original.get('src') || src);
         node.setAttribute('alt', original.get('alt') || '');
         node.setAttribute('class', 'markdown-image');
         node.setAttribute('loading', 'lazy');
@@ -179,6 +180,7 @@ md.renderer.rules.html_block = (tokens, idx, options, env) => (
 const defaultImage = md.renderer.rules.image;
 md.renderer.rules.image = (tokens, idx, options, env, self) => {
   const token = tokens[idx];
+  const originalSource = token.attrGet('src') || '';
   const source = resolveImageSource(token.attrGet('src'), env && env.filePath);
   if (!source) {
     const alt = token.children ? self.renderInlineAsText(token.children, options, env) : 'Image';
@@ -186,6 +188,7 @@ md.renderer.rules.image = (tokens, idx, options, env, self) => {
   }
 
   token.attrSet('src', source);
+  token.attrSet('data-feathermark-src', originalSource);
   token.attrSet('class', 'markdown-image');
   token.attrSet('loading', 'lazy');
   token.attrSet('decoding', 'async');

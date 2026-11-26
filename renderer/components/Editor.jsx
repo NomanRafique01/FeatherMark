@@ -5,13 +5,15 @@
 
 import { h } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
-import { EditorState, EditorSelection } from '@codemirror/state';
+import { Compartment, EditorState, EditorSelection } from '@codemirror/state';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentMore, indentLess, undo, redo } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
 import { search, setSearchQuery, SearchQuery, findNext, findPrevious, replaceNext, replaceAll } from '@codemirror/search';
+import { EditorFormatToggle } from './EditorFormatToggle.jsx';
+import { RichEditor } from './RichEditor.jsx';
 
 // Subtle markdown syntax styling per DESIGN_TOKENS.md §2 (no rainbow, no VS Code-isms)
 const featherMarkHighlightStyle = HighlightStyle.define([
@@ -234,11 +236,13 @@ const autoPairHandler = EditorView.inputHandler.of((view, from, to, text) => {
   return false;
 });
 
-export function Editor({
+function CodeEditor({
   tabId,
   initialText = '',
   initialCursor = 0,
   initialScroll = 0,
+  editorFormat = 'markdown',
+  onEditorFormatChange,
   onChange,
   onCursorChange,
   onCursorInfoChange,
@@ -252,6 +256,7 @@ export function Editor({
   const isExternalScrollRef = useRef(false);
   const externalScrollTimerRef = useRef(null);
   const editorSyncRafRef = useRef(null);
+  const languageCompartmentRef = useRef(new Compartment());
   const callbacksRef = useRef({ onChange, onCursorChange, onCursorInfoChange, onScrollChange, onEditorScroll });
   callbacksRef.current = { onChange, onCursorChange, onCursorInfoChange, onScrollChange, onEditorScroll };
 
@@ -476,7 +481,7 @@ export function Editor({
       doc: initialText,
       extensions: [
         history(),
-        markdown(),
+        languageCompartmentRef.current.of(editorFormat === 'markdown' ? markdown() : []),
         syntaxHighlighting(featherMarkHighlightStyle),
         EditorView.lineWrapping,
         drawSelection({ cursorBlinkRate: 0 }),
@@ -519,6 +524,18 @@ export function Editor({
     };
   }, []);
 
+  // Switch only the syntax language. The Markdown source, undo history,
+  // cursor, and save path remain shared between both editor formats.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: languageCompartmentRef.current.reconfigure(
+        editorFormat === 'markdown' ? markdown() : [],
+      ),
+    });
+  }, [editorFormat]);
+
   // When tabId changes, swap the document and restore cursor/scroll without remounting the EditorView
   useEffect(() => {
     const view = viewRef.current;
@@ -553,6 +570,9 @@ export function Editor({
     const view = viewRef.current;
     if (!view) return;
 
+    // Let the format switch receive its own pointer and focus events.
+    if (e.target.closest && e.target.closest('.editor-modebar')) return;
+
     // If the click is already inside the CodeMirror content DOM, let CM handle it
     if (view.contentDOM.contains(e.target)) return;
 
@@ -571,7 +591,33 @@ export function Editor({
     view.focus();
   }
 
-  return h('div', { class: 'editor-pane-container', onMouseDown: handlePaneMouseDown },
-    h('div', { ref: containerRef, class: 'editor-cm-wrapper' })
+  return h('div', {
+    ref: containerRef,
+    class: 'editor-cm-wrapper',
+    onMouseDown: handlePaneMouseDown,
+  });
+}
+
+export function Editor(props) {
+  const {
+    editorFormat = 'markdown',
+    onEditorFormatChange,
+    showEditorFormat = true,
+    ...editorProps
+  } = props;
+
+  const richEditorProps = {
+    ...editorProps,
+    text: editorProps.initialText || '',
+  };
+
+  return h('div', { class: 'editor-pane-container' },
+    showEditorFormat && h('div', { class: 'editor-modebar' },
+      h('span', { class: 'editor-modebar-label' }, 'Editing format'),
+      h(EditorFormatToggle, { value: editorFormat, onChange: onEditorFormatChange }),
+    ),
+    editorFormat === 'plain'
+      ? h(RichEditor, richEditorProps)
+      : h(CodeEditor, { ...editorProps, editorFormat: 'markdown' }),
   );
 }

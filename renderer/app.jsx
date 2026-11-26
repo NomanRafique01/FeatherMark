@@ -270,6 +270,7 @@ function App() {
   const [tabs, setTabs] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [viewMode, setViewMode] = useState('split');
+  const [editorFormat, setEditorFormat] = useState('markdown');
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [toolbarOpen, setToolbarOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
@@ -298,7 +299,9 @@ function App() {
   const previewHandleRef = useRef(null);
   const activeScrollerRef = useRef('editor');
   const viewModeRef = useRef(viewMode);
+  const editorFormatRef = useRef(editorFormat);
   viewModeRef.current = viewMode;
+  editorFormatRef.current = editorFormat;
   const stateRef = useRef({ tabs: [], activeId: null });
   stateRef.current = { tabs, activeId };
 
@@ -366,6 +369,17 @@ function App() {
       window.feathermark.setSettings('focusMode', next);
       return next;
     });
+  }
+
+  function setEditorFormatMode(next) {
+    const value = next === 'plain' ? 'plain' : 'markdown';
+    setEditorFormat(value);
+    window.feathermark.setSettings('editorFormat', value);
+    requestAnimationFrame(() => focusEditor());
+  }
+
+  function toggleEditorFormat() {
+    setEditorFormatMode(editorFormatRef.current === 'markdown' ? 'plain' : 'markdown');
   }
 
   function onSelectHeading(item) {
@@ -914,6 +928,9 @@ function App() {
       window.feathermark.getSettings('viewMode', 'split').then((v) => {
         if (!cancelled && VIEW_MODES.includes(v)) setViewMode(v);
       }),
+      window.feathermark.getSettings('editorFormat', 'markdown').then((v) => {
+        if (!cancelled && (v === 'markdown' || v === 'plain')) setEditorFormat(v);
+      }),
       window.feathermark.getSettings('outlineOpen', false).then((v) => {
         if (!cancelled) setOutlineOpen(!!v);
       }),
@@ -981,6 +998,9 @@ function App() {
       } else if (e.altKey && e.key.toLowerCase() === 't') {
         e.preventDefault();
         toggleToolbar();
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        toggleEditorFormat();
       } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') {
         e.preventDefault();
         toggleOutline();
@@ -1170,8 +1190,12 @@ function App() {
               key: active.id,
               tabId: active.id,
               initialText: active.text,
+              filePath: active.path,
               initialCursor: active.cursor,
               initialScroll: active.scroll,
+              editorFormat,
+              onEditorFormatChange: setEditorFormatMode,
+              showEditorFormat: viewMode === 'editor-only',
               onChange: onEditorChange,
               onCursorChange: onCursorChange,
               onCursorInfoChange: setCursorPos,
