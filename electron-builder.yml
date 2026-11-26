@@ -35,13 +35,13 @@ win:
   target:
     - nsis
 nsis:
-  # Keep the assisted installer on NSIS's native determinate InstFiles page.
-  # ZIP-backed app payloads extract in smaller file steps, so the progress
-  # indicator advances left-to-right instead of appearing to pause between
-  # large solid-archive chunks.
-  useZip: true
-  # Remove the legacy ProgID created by early FeatherMark installers.
-  include: build/installer.nsh
+  # Use electron-builder's assisted-installer template unchanged. Overriding it
+  # with `script:` skips the uninstaller build pass, which leaves the installer
+  # without an uninstaller and fails the NSIS compile.
+  #   - build/feathermark-custom.nsh makes the extraction details visible and
+  #     cleans the legacy ProgID created by early FeatherMark installers.
+  #   - scripts/patch-nsis-extraction.mjs streams each extracted file name.
+  include: build/feathermark-custom.nsh
   artifactName: ${productName}-Setup-${version}.${ext}
   oneClick: false
   perMachine: true

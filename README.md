@@ -62,7 +62,7 @@ FeatherMark is distributed as a Windows x64 installer through GitHub Releases.
 
 | Package | Description | Download |
 |---|---|---|
-| **Windows installer** (`.exe`) | NSIS setup wizard with an install-location picker, shortcuts, app icon, and real installation progress | [Open the latest release](https://github.com/NomanRafique01/FeatherMark/releases/latest) |
+| **Windows installer** (`.exe`) | NSIS setup wizard with an install-location picker, shortcuts, app icon, and a live per-file extraction log | [Open the latest release](https://github.com/NomanRafique01/FeatherMark/releases/latest) |
 
 The current release artifact is named `FeatherMark-Setup-2.0.1.exe`.
 
@@ -107,7 +107,14 @@ The current release artifact is named `FeatherMark-Setup-2.0.1.exe`.
 
 The installer registers FeatherMark with Windows so you can choose it from **Open with** for Markdown files. Windows may request administrator permission for the machine-wide installation.
 
-Fresh installs and reinstalls start with clean FeatherMark settings for the current Windows user; FeatherMark never reads another Windows user's profile. A full uninstall removes the application, shortcuts, file associations, settings, session data, and FeatherMark's local runtime cache. In-place upgrades keep the current user's FeatherMark settings and documents untouched.
+During the Install step the details pane lists each application file as it is extracted, so
+progress is visible instead of a stalled bar.
+
+Every install starts FeatherMark brand new — it clears the previous settings, recent-files
+list, restored-tab session, and caches for the installing Windows user. Other Windows users
+keep their own state until they run an installer. Your Markdown documents are ordinary files
+on disk and are never removed by installing or uninstalling. A full uninstall also removes the
+application, shortcuts, and file associations.
 
 ## File associations
 
@@ -162,6 +169,11 @@ npm run build:renderer
 npm run dist
 ```
 
+Before packaging, `npm run dist` runs `scripts/patch-nsis-extraction.mjs`, which points
+electron-builder's NSIS template at `Nsis7z::ExtractWithDetails` so the installer lists files
+as it extracts them. It re-applies itself after a fresh `npm ci` and stops the build with an
+explanation if a future electron-builder changes that template.
+
 The completed installer is written to `dist/` using the versioned name:
 
 ```text
@@ -173,6 +185,8 @@ dist/FeatherMark-Setup-<version>.exe
 ```text
 FeatherMark/
 ├── assets/                 # Application artwork and Windows icon assets
+├── build/                  # NSIS installer hooks (custom.nsh macros)
+├── scripts/                # Build-time packaging scripts
 ├── renderer/               # Preact UI, editor, preview, themes, and styles
 │   ├── components/         # Reusable desktop UI components
 │   ├── app.jsx             # Renderer entry point and application state

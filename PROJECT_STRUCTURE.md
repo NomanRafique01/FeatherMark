@@ -5,7 +5,11 @@ feathermark/
 ├── main.js                     # Electron main process (window, menu, IPC handlers)
 ├── preload.js                  # contextBridge — secure IPC only, no direct Node access
 ├── package.json
-├── electron-builder.yml        # Packaging config (NSIS + portable)
+├── electron-builder.yml        # Windows NSIS packaging + file associations
+├── build/
+│   └── feathermark-custom.nsh  # NSIS hooks: detail visibility, legacy ProgID + uninstall cleanup
+├── scripts/
+│   └── patch-nsis-extraction.mjs  # Streams extracted file names (run by `npm run dist`)
 │
 ├── renderer/
 │   ├── index.html

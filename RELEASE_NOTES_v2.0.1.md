@@ -1,19 +1,28 @@
 # FeatherMark v2.0.1
 
-This patch makes the Windows installer cleaner, safer, and more transparent during installation.
+This patch makes the Windows installer cleaner, safer, and transparent while it installs.
 
 ## Installer improvements
 
-- **Clean fresh installs** — a fresh install or reinstall starts with clean FeatherMark settings for the current Windows user instead of inheriting stale sessions or recent-file data.
-- **Per-user isolation** — FeatherMark uses the current Windows user's app-data directory and never reads another Windows user's profile.
-- **Complete uninstall** — uninstall removes the installed application, shortcuts, file associations, settings, session data, and FeatherMark's local runtime cache.
-- **Upgrade-safe behavior** — in-place upgrades preserve the current user's FeatherMark settings and documents.
-- **Smoother installation progress** — the installer uses ZIP-backed extraction and NSIS's native determinate progress page so progress advances left-to-right with visible extraction details.
+- **Live extraction log** — the Install page now lists each application file as it is
+  unpacked, so you can watch FeatherMark install instead of staring at a stalled bar.
+- **Fixed: installer build** — the previous packaging recipe overrode electron-builder's NSIS
+  script, which aborted the build and would have shipped without an uninstaller. The installer
+  is back on electron-builder's supported assisted template, so the uninstaller is built and
+  embedded again.
+- **Brand-new installs** — every install starts FeatherMark from defaults: it clears the
+  previous settings, recent-files list, restored-tab session, and caches for the installing
+  Windows user. Markdown documents are plain files on disk and are never removed.
+- **Complete uninstall** — uninstall removes the installed application, shortcuts, file
+  associations, settings, session data, and FeatherMark's local runtime cache.
+- **Per-user isolation** — FeatherMark uses the current Windows user's app-data directory and
+  never reads another Windows user's profile.
 
 ## Included in the release
 
 - Windows x64 installer: `FeatherMark-Setup-2.0.1.exe`
-- Existing FeatherMark v2 editor, Markdown rendering, themes, tabs, recents, session restore, and Windows file associations
+- Existing FeatherMark v2.0 editor, Markdown rendering, themes, tabs, recents, session
+  restore, and Windows file associations
 
 ## Compatibility
 
