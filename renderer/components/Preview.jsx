@@ -105,6 +105,7 @@ function makeSyncScroller() {
 // ---------------------------------------------------------------------------
 export function Preview({
   text = '',
+  filePath = null,
   initialScroll = 0,
   onScrollChange,
   onPreviewScroll,
@@ -214,7 +215,7 @@ export function Preview({
   // Debounced render (≥150ms idle) + in-place DOM morph (preserves scroll)
   useEffect(() => {
     const timer = setTimeout(() => {
-      const rawHtml = renderMarkdown(text);
+      const rawHtml = renderMarkdown(text, { filePath });
       if (rawHtml === prevHtmlRef.current) return;
       prevHtmlRef.current = rawHtml;
 
@@ -241,7 +242,7 @@ export function Preview({
     }, 150);
 
     return () => clearTimeout(timer);
-  }, [text]);
+  }, [text, filePath]);
 
   // Highlight search matches in rendered preview using CSS Custom Highlight API
   // Walks all text nodes and joins them so matches spanning inline tags (bold/italic/code/links) highlight cleanly.
@@ -337,7 +338,7 @@ export function Preview({
 
   // Immediate render on mount (innerHTML, no morph needed — DOM is empty)
   useEffect(() => {
-    const rawHtml = renderMarkdown(text);
+    const rawHtml = renderMarkdown(text, { filePath });
     prevHtmlRef.current = rawHtml;
     const prose = proseRef.current;
     if (prose) {

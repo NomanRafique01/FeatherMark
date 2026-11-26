@@ -1201,6 +1201,7 @@ function App() {
             h(Preview, {
               key: 'prev-' + active.id,
               text: active.text,
+              filePath: active.path,
               initialScroll: active.previewScroll || 0,
               onScrollChange: onPreviewScrollChange,
               onPreviewScroll: onPreviewScroll,

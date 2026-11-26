@@ -3,6 +3,10 @@
 # does not have to blur a single raster for shortcuts or taskbar icons.
 appId: com.feathermark.app
 productName: FeatherMark
+# The exe's FileDescription version string is what the Windows shell shows as
+# the app name in "Open with" / default-app lists; build/afterPack.js pins it
+# to "FeatherMark" instead of the long package.json description.
+afterPack: build/afterPack.js
 directories:
   output: dist
   buildResources: assets
@@ -33,6 +37,9 @@ win:
   target:
     - nsis
 nsis:
+  # build/installer.nsh renames the registered ProgID friendly name to
+  # "FeatherMark" and drops a stale one inherited from an older tool.
+  include: build/installer.nsh
   artifactName: ${productName}-Setup-${version}.${ext}
   oneClick: false
   perMachine: true
