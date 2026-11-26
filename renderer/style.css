@@ -1722,10 +1722,13 @@ button {
   tab-size: 4;
 }
 
-.preview-prose img.markdown-image {
+/* Match GitHub's image sizing contract: Markdown/HTML dimensions remain the
+   source of truth; dimensionless images keep their intrinsic size until the
+   content column needs to constrain them. */
+.preview-prose img {
   display: inline-block;
+  box-sizing: content-box;
   max-width: 100%;
-  height: auto;
   vertical-align: middle;
 }
 

@@ -101,6 +101,29 @@ function safeDimension(value) {
   return Number.isFinite(number) && number > 0 && number <= 4096 ? String(number) : '';
 }
 
+// Older rendered-editor revisions could place Markdown syntax inside a raw
+// HTML alignment block. Markdown-it intentionally treats that block as HTML,
+// so the nested image/badge syntax would appear as literal text. Expand that
+// legacy shape after sanitizing it so existing tabs remain readable.
+function expandEmbeddedMarkdown(root, env, document) {
+  const walker = document.createTreeWalker(root, 4); // NodeFilter.SHOW_TEXT
+  const textNodes = [];
+  let node;
+  while ((node = walker.nextNode())) textNodes.push(node);
+
+  for (const textNode of textNodes) {
+    if (textNode.parentElement && textNode.parentElement.closest('pre, code')) continue;
+    if (!/(?:!\[[^\]]*\]\(|\*\*|__|\[[^\]]+\]\()/.test(textNode.nodeValue || '')) continue;
+
+    const rendered = md.renderInline(textNode.nodeValue, env);
+    if (!rendered || rendered === md.utils.escapeHtml(textNode.nodeValue)) continue;
+
+    const holder = document.createElement('span');
+    holder.innerHTML = rendered;
+    textNode.replaceWith(...Array.from(holder.childNodes));
+  }
+}
+
 function sanitizeHtmlFragment(raw, env) {
   if (typeof DOMParser === 'undefined') return md.utils.escapeHtml(raw);
 
@@ -167,6 +190,7 @@ function sanitizeHtmlFragment(raw, env) {
   }
 
   visit(root);
+  expandEmbeddedMarkdown(root, env, document);
   return root.innerHTML;
 }
 

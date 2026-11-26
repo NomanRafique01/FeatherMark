@@ -10,8 +10,30 @@ function escapeAttribute(value) {
   return String(value || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function inlineText(value) {
   return String(value || '').replace(/\s+/g, ' ');
+}
+
+function serializeImage(node, asHtml = false) {
+  const src = node.getAttribute('data-feathermark-src') || node.getAttribute('src') || '';
+  const alt = node.getAttribute('alt') || '';
+  const title = node.getAttribute('title');
+  const width = node.getAttribute('width');
+  const height = node.getAttribute('height');
+  if (!src) return asHtml ? escapeHtml(alt) : alt;
+
+  if (!asHtml && !width && !height) {
+    return `![${alt}](${src}${title ? ` "${title}"` : ''})`;
+  }
+
+  return `<img src="${escapeAttribute(src)}" alt="${escapeAttribute(alt)}"${title ? ` title="${escapeAttribute(title)}"` : ''}${width ? ` width="${escapeAttribute(width)}"` : ''}${height ? ` height="${escapeAttribute(height)}"` : ''} />`;
 }
 
 function serializeInline(node) {
@@ -30,13 +52,7 @@ function serializeInline(node) {
     const fence = value.includes('`') ? '``' : '`';
     return `${fence}${value}${fence}`;
   }
-  if (tag === 'img') {
-    const src = node.getAttribute('data-feathermark-src') || node.getAttribute('src') || '';
-    const alt = node.getAttribute('alt') || '';
-    const title = node.getAttribute('title');
-    if (!src) return alt;
-    return `![${alt}](${src}${title ? ` "${title}"` : ''})`;
-  }
+  if (tag === 'img') return serializeImage(node);
   if (tag === 'a') {
     const href = node.getAttribute('data-feathermark-href') || node.getAttribute('href') || '';
     return href ? `[${children}](${href})` : children;
@@ -45,11 +61,31 @@ function serializeInline(node) {
   return children;
 }
 
-function alignedBlock(node, content) {
-  const align = node.getAttribute('data-feathermark-align');
-  if (!align) return content;
+function serializeInlineHtml(node) {
+  if (node.nodeType === 3) return escapeHtml(node.nodeValue).replace(/\s+/g, ' ');
+  if (node.nodeType !== 1) return '';
+
   const tag = node.tagName.toLowerCase();
-  return `<${tag} align="${escapeAttribute(align)}">${content}</${tag}>`;
+  const children = Array.from(node.childNodes).map(serializeInlineHtml).join('');
+  if (tag === 'br') return '<br />';
+  if (tag === 'strong' || tag === 'b') return `<strong>${children}</strong>`;
+  if (tag === 'em' || tag === 'i') return `<em>${children}</em>`;
+  if (tag === 'del' || tag === 's') return `<del>${children}</del>`;
+  if (tag === 'code') return `<code>${escapeHtml(node.textContent || '')}</code>`;
+  if (tag === 'img') return serializeImage(node, true);
+  if (tag === 'a') {
+    const href = node.getAttribute('data-feathermark-href') || node.getAttribute('href') || '';
+    return href ? `<a href="${escapeAttribute(href)}">${children}</a>` : children;
+  }
+  if (tag === 'u') return `<u>${children}</u>`;
+  return children;
+}
+
+function alignedBlock(node) {
+  const align = node.getAttribute('data-feathermark-align');
+  if (!align) return '';
+  const tag = node.tagName.toLowerCase();
+  return `<${tag} align="${escapeAttribute(align)}">${serializeInlineHtml(node)}</${tag}>`;
 }
 
 function serializeBlocks(parent) {
@@ -60,14 +96,18 @@ function serializeBlocks(parent) {
     const tag = node.tagName.toLowerCase();
     if (/^h[1-6]$/.test(tag)) {
       const content = serializeInline(node).trim();
-      return alignedBlock(node, node.getAttribute('data-feathermark-align') ? content : `${'#'.repeat(Number(tag[1]))} ${content}`) + '\n\n';
+      return (node.getAttribute('data-feathermark-align')
+        ? alignedBlock(node)
+        : `${'#'.repeat(Number(tag[1]))} ${content}`) + '\n\n';
     }
     if (tag === 'p') {
-      return alignedBlock(node, serializeInline(node).trim()) + '\n\n';
+      return (node.getAttribute('data-feathermark-align')
+        ? alignedBlock(node)
+        : serializeInline(node).trim()) + '\n\n';
     }
     if (tag === 'div') {
       const content = serializeInline(node).trim();
-      return (node.getAttribute('data-feathermark-align') ? alignedBlock(node, content) : content) + '\n\n';
+      return (node.getAttribute('data-feathermark-align') ? alignedBlock(node) : content) + '\n\n';
     }
     if (tag === 'blockquote') {
       const content = serializeBlocks(node).trim();
