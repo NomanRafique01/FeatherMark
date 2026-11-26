@@ -64,7 +64,7 @@ FeatherMark is distributed as a Windows x64 installer through GitHub Releases.
 |---|---|---|
 | **Windows installer** (`.exe`) | NSIS setup wizard with an install-location picker, shortcuts, app icon, and real installation progress | [Open the latest release](https://github.com/NomanRafique01/FeatherMark/releases/latest) |
 
-The current release artifact is named `FeatherMark-Setup-0.1.0.exe`.
+The current release artifact is named `FeatherMark-Setup-2.0.0.exe`.
 
 > [!NOTE]
 > The latest Windows installer is available from the [GitHub Releases page](https://github.com/NomanRafique01/FeatherMark/releases/latest).
@@ -74,6 +74,8 @@ The current release artifact is named `FeatherMark-Setup-0.1.0.exe`.
 ### Focused writing
 
 - **Live Markdown preview** — write in the editor and see formatted Markdown beside it.
+- **Editable rendered Markdown** — format headings, lists, task items, links, images, code, quotes, and tables directly in the rendered document.
+- **Plain text and Markdown modes** — switch editing formats while keeping the same document and save path.
 - **Editor, preview, and split modes** — choose the layout that fits the current task.
 - **Tabs** — work across multiple documents without losing your place.
 - **Find and replace** — search the current document with keyboard-friendly controls.
@@ -99,7 +101,7 @@ The current release artifact is named `FeatherMark-Setup-0.1.0.exe`.
 ## Installation
 
 1. Open the [latest GitHub Release](https://github.com/NomanRafique01/FeatherMark/releases/latest).
-2. Download `FeatherMark-Setup-0.1.0.exe` or the installer for the release you selected.
+2. Download `FeatherMark-Setup-2.0.0.exe` or the installer for the release you selected.
 3. Run the installer and choose the installation directory.
 4. Launch FeatherMark from the desktop or Start Menu shortcut.
 
