@@ -52,22 +52,43 @@ Most Markdown tools either feel like a developer IDE or depend on a browser-firs
 
 ## Download
 
-FeatherMark is distributed as a Windows x64 installer through GitHub Releases.
+FeatherMark is distributed as a Windows x64 installer through GitHub Releases. Requires Windows 10 or Windows 11, 64-bit; no runtime internet connection.
 
 <p align="center">
-  <a href="https://github.com/NomanRafique01/FeatherMark/releases/latest">
-    <img src="https://img.shields.io/badge/Download%20FeatherMark-latest%20Windows%20installer-426439?style=for-the-badge&logo=windows&logoColor=white" alt="Download the latest FeatherMark Windows installer" />
+  <a href="https://github.com/NomanRafique01/FeatherMark/releases/download/v2.0.1/FeatherMark-Setup-2.0.1.exe">
+    <img src="https://img.shields.io/badge/Download%20v2.0.1-latest%20Windows%20installer-426439?style=for-the-badge&logo=windows&logoColor=white" alt="Download FeatherMark v2.0.1, the latest Windows installer" />
+  </a>
+  <a href="https://github.com/NomanRafique01/FeatherMark/releases/download/v0.1.0/FeatherMark-Setup-0.1.0.exe">
+    <img src="https://img.shields.io/badge/Download%20v0.1.0-legacy%20Windows%20installer-555555?style=for-the-badge&logo=windows&logoColor=white" alt="Download the legacy FeatherMark v0.1.0 Windows installer" />
   </a>
 </p>
 
-| Package | Description | Download |
-|---|---|---|
-| **Windows installer** (`.exe`) | NSIS setup wizard with an install-location picker, shortcuts, app icon, and a live per-file extraction log | [Open the latest release](https://github.com/NomanRafique01/FeatherMark/releases/latest) |
+### Which version should I get?
 
-The current release artifact is named `FeatherMark-Setup-2.0.1.exe`.
+> [!TIP]
+> **Install v2.0.1.** It is the current release, and the recommended download for every new
+> machine or upgrade. Take v0.1.0 only if you specifically need the pre-v2 editor — it is kept
+> for reference and is no longer maintained.
 
-> [!NOTE]
-> The latest Windows installer is available from the [GitHub Releases page](https://github.com/NomanRafique01/FeatherMark/releases/latest).
+| Version | Status | Installer | What you get |
+|---|---|---|---|
+| **v2.0.1** | **Recommended — latest** | [`FeatherMark-Setup-2.0.1.exe`](https://github.com/NomanRafique01/FeatherMark/releases/download/v2.0.1/FeatherMark-Setup-2.0.1.exe) (83.8 MB) | Editable rendered Markdown, synchronized source/rendered editing, tabs, outline, find and replace, themes, session restore, GitHub-style rendering, plus the fixed NSIS installer with a live per-file extraction log |
+| v0.1.0 | Legacy — prerelease | [`FeatherMark-Setup-0.1.0.exe`](https://github.com/NomanRafique01/FeatherMark/releases/download/v0.1.0/FeatherMark-Setup-0.1.0.exe) (83.8 MB) | The original FeatherMark editor: tabs, live preview, outline, find and replace, and themes — without the rendered-mode editing and GitHub-style rendering added in v2 |
+
+Both installers are machine-wide NSIS setup wizards with an install-location picker, desktop and Start Menu shortcuts, and Markdown file associations. Your `.md` files stay plain text and are never modified by installing or uninstalling.
+
+The differences worth knowing before you pick the legacy build: v0.1.0 registers a generic
+"Markdown document" ProgID that v2.0.1 removes on install, and its uninstaller leaves your
+settings and caches behind. Only v2.0.1 starts FeatherMark brand new and streams the extraction
+log.
+
+Verifying v2.0.1:
+
+```text
+SHA-256  b2934087d7648aeb2bd67b56df10b5ba2d08d7a7ab23e13aa4d514fe95662800
+```
+
+Older v2.0.0 builds were superseded by v2.0.1 and are not published. Every release, including release notes and checksums, is listed on the [releases page](https://github.com/NomanRafique01/FeatherMark/releases).
 
 ## Features
 
@@ -100,21 +121,21 @@ The current release artifact is named `FeatherMark-Setup-2.0.1.exe`.
 
 ## Installation
 
-1. Open the [latest GitHub Release](https://github.com/NomanRafique01/FeatherMark/releases/latest).
-2. Download `FeatherMark-Setup-2.0.1.exe` or the installer for the release you selected.
+1. Pick a version in [Download](#download) above, or open the [latest GitHub Release](https://github.com/NomanRafique01/FeatherMark/releases/latest).
+2. Download `FeatherMark-Setup-2.0.1.exe` — recommended for every new install and upgrade.
 3. Run the installer and choose the installation directory.
 4. Launch FeatherMark from the desktop or Start Menu shortcut.
 
 The installer registers FeatherMark with Windows so you can choose it from **Open with** for Markdown files. Windows may request administrator permission for the machine-wide installation.
 
-During the Install step the details pane lists each application file as it is extracted, so
-progress is visible instead of a stalled bar.
+On v2.0.1, the Install step lists each application file as it is extracted, so progress is
+visible instead of a stalled bar.
 
-Every install starts FeatherMark brand new — it clears the previous settings, recent-files
-list, restored-tab session, and caches for the installing Windows user. Other Windows users
-keep their own state until they run an installer. Your Markdown documents are ordinary files
-on disk and are never removed by installing or uninstalling. A full uninstall also removes the
-application, shortcuts, and file associations.
+Every v2.0.1 install starts FeatherMark brand new — it clears the previous settings,
+recent-files list, restored-tab session, and caches for the installing Windows user. Other
+Windows users keep their own state until they run an installer. Your Markdown documents are
+ordinary files on disk and are never removed by installing or uninstalling. A full uninstall
+also removes the application, shortcuts, and file associations.
 
 ## File associations
 
