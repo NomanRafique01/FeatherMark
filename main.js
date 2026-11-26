@@ -46,20 +46,31 @@ function findMarkdownArgument(args) {
   return null;
 }
 
+function bringToFront() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    if (app.isReady()) createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
+}
+
 function openExternalFile(filePath) {
   if (!filePath) return;
   pendingExternalFile = filePath;
-  if (!mainWindow || mainWindow.isDestroyed() || !rendererReady) return;
+  bringToFront();
+  if (!rendererReady) return; // app-ready flushes pendingExternalFile once the renderer listens
   const nextPath = pendingExternalFile;
   pendingExternalFile = null;
-  if (mainWindow.isMinimized()) mainWindow.restore();
-  mainWindow.focus();
   sendToRenderer('feathermark:drop-open', nextPath);
 }
 
 if (hasSingleInstanceLock) {
   app.on('second-instance', (_event, commandLine) => {
-    openExternalFile(findMarkdownArgument(commandLine));
+    const filePath = findMarkdownArgument(commandLine);
+    if (filePath) openExternalFile(filePath);
+    else bringToFront();
   });
   app.on('open-file', (event, filePath) => {
     event.preventDefault();
@@ -485,30 +496,53 @@ ipcMain.on('feathermark:app-ready', (e) => {
 let quitResolved = false;
 let isClosingOrQuitting = false;
 
+// Await the renderer's in-app banner. The window close is always preventDefault-ed
+// before prompting, so the window stays alive while the user answers. A timeout
+// covers a hung/crashed renderer: cancel, so nothing is ever lost silently.
 function promptRenderer(requestChannel, doneChannel, payload) {
   return new Promise((resolve) => {
     let done = false;
     const finishPrompt = (choice) => {
       if (done) return;
       done = true;
+      clearTimeout(guard);
       ipcMain.removeListener(doneChannel, onChoice);
       resolve(choice);
     };
     const onChoice = (_e, choice) => finishPrompt(choice);
     ipcMain.on(doneChannel, onChoice);
-    mainWindow.once('closed', () => finishPrompt(2));
+    const guard = setTimeout(() => finishPrompt(2), 15000);
     sendToRenderer(requestChannel, payload);
   });
 }
 
-async function checkUnsavedBeforeExit(event) {
-  if (quitResolved || !mainWindow || mainWindow.isDestroyed() || tabs.size === 0) return;
+function resetCloseState() {
+  isClosingOrQuitting = false;
+}
 
-  const unsaved = dirtyTabs();
-  if (tabs.size === 1 && unsaved.length === 0) {
-    quitResolved = true; // single clean tab: close immediately
+function finalizeQuit() {
+  resetCloseState();
+  quitResolved = true;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.close(); // close handler sees quitResolved and lets it through
+  } else {
+    app.quit();
+  }
+}
+
+// Drives the whole exit: window 'close' calls this with the live close event
+// (synchronous preventDefault below keeps the window up while banners are shown);
+// 'before-quit' calls it without an event when no window is left.
+async function checkUnsavedBeforeExit(event) {
+  if (quitResolved) return;
+  if (!mainWindow || mainWindow.isDestroyed() || !rendererReady) {
+    // No live surface to run the banner flow — the quit stands as-is.
+    quitResolved = true;
     return;
   }
+
+  const unsaved = dirtyTabs();
+  if (tabs.size < 2 && unsaved.length < 1) return; // nothing to confirm
 
   if (event) event.preventDefault();
   if (isClosingOrQuitting) return;
@@ -521,21 +555,16 @@ async function checkUnsavedBeforeExit(event) {
       { count: tabs.size },
     );
     if (tabsChoice === 2) {
-      isClosingOrQuitting = false;
+      resetCloseState();
       return; // cancel — stay in app
     }
     if (tabsChoice === 1) {
-      isClosingOrQuitting = false;
+      resetCloseState();
       sendToRenderer('feathermark:menu', 'close-tab');
-      return; // keep app open and close only the current tab
+      return; // close only the current tab, app stays open (its own save banner applies)
     }
     if (unsaved.length === 0) {
-      quitResolved = true;
-      isClosingOrQuitting = false;
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.destroy();
-      }
-      app.quit();
+      finalizeQuit(); // close all tabs, nothing unsaved
       return;
     }
   }
@@ -544,35 +573,25 @@ async function checkUnsavedBeforeExit(event) {
   const response = await promptRenderer(
     'feathermark:confirm-exit-request',
     'feathermark:confirm-exit-done',
-    {
-      count: unsaved.length,
-      name: names[0],
-    },
+    { count: unsaved.length, name: names[0] },
   );
 
   if (response === 2) {
-    isClosingOrQuitting = false;
+    resetCloseState();
     return; // cancel — back to work, nothing lost
   }
 
   if (response === 1) {
     settings.clearSession();
-    quitResolved = true;
-    isClosingOrQuitting = false;
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.destroy();
-    }
-    app.quit();
+    finalizeQuit();
     return;
   }
 
   // Save all: renderer flushes dirty tabs (Save As dialog per untitled tab), then signals done.
-  let settled = false;
-  const finish = (ok) => {
-    if (settled) return;
-    settled = true;
-    isClosingOrQuitting = false;
+  const onDone = (_e, ok) => {
+    ipcMain.removeListener('feathermark:save-all-done', onDone);
     if (!ok) {
+      resetCloseState();
       dialog.showMessageBox(mainWindow, {
         type: 'error',
         title: 'Could not save everything',
@@ -581,22 +600,21 @@ async function checkUnsavedBeforeExit(event) {
       });
       return;
     }
-    quitResolved = true;
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.destroy();
-    }
-    app.quit();
-  };
-  const onDone = (_e, ok) => {
-    ipcMain.removeListener('feathermark:save-all-done', onDone);
-    finish(!!ok);
+    finalizeQuit();
   };
   ipcMain.on('feathermark:save-all-done', onDone);
   sendToRenderer('feathermark:save-all-request', unsaved.map(([id]) => id));
 }
 
 app.on('before-quit', (event) => {
-  checkUnsavedBeforeExit(event);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // The window 'close' event runs the confirm flow with a cancellable event;
+    // prevent this quit round from tearing the app down underneath it. If the
+    // flow ends in Cancel, the app simply keeps running.
+    if (!quitResolved) event.preventDefault();
+    return;
+  }
+  checkUnsavedBeforeExit();
 });
 
 // ---- Menu ----
@@ -630,7 +648,16 @@ function buildMenu() {
         { id: 'save-file-as', label: 'Save file as…', accelerator: 'CmdOrCtrl+Shift+S', enabled: false, click: () => sendToRenderer('feathermark:menu', 'save-file-as') },
         { type: 'separator' },
         { label: 'Close tab', accelerator: 'CmdOrCtrl+W', click: () => sendToRenderer('feathermark:menu', 'close-tab') },
-        { role: 'quit' },
+        {
+          label: 'Quit FeatherMark',
+          accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Ctrl+Q',
+          // go through the window's close event so the confirm banners run;
+          // a role:'quit' would fire app.quit() and close the window under them
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+            else { quitResolved = true; app.quit(); }
+          },
+        },
       ],
     },
     {
