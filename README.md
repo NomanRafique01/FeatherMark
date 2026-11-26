@@ -64,7 +64,7 @@ FeatherMark is distributed as a Windows x64 installer through GitHub Releases.
 |---|---|---|
 | **Windows installer** (`.exe`) | NSIS setup wizard with an install-location picker, shortcuts, app icon, and real installation progress | [Open the latest release](https://github.com/NomanRafique01/FeatherMark/releases/latest) |
 
-The current release artifact is named `FeatherMark-Setup-2.0.0.exe`.
+The current release artifact is named `FeatherMark-Setup-2.0.1.exe`.
 
 > [!NOTE]
 > The latest Windows installer is available from the [GitHub Releases page](https://github.com/NomanRafique01/FeatherMark/releases/latest).
@@ -101,11 +101,13 @@ The current release artifact is named `FeatherMark-Setup-2.0.0.exe`.
 ## Installation
 
 1. Open the [latest GitHub Release](https://github.com/NomanRafique01/FeatherMark/releases/latest).
-2. Download `FeatherMark-Setup-2.0.0.exe` or the installer for the release you selected.
+2. Download `FeatherMark-Setup-2.0.1.exe` or the installer for the release you selected.
 3. Run the installer and choose the installation directory.
 4. Launch FeatherMark from the desktop or Start Menu shortcut.
 
 The installer registers FeatherMark with Windows so you can choose it from **Open with** for Markdown files. Windows may request administrator permission for the machine-wide installation.
+
+Fresh installs and reinstalls start with clean FeatherMark settings for the current Windows user; FeatherMark never reads another Windows user's profile. A full uninstall removes the application, shortcuts, file associations, settings, session data, and FeatherMark's local runtime cache. In-place upgrades keep the current user's FeatherMark settings and documents untouched.
 
 ## File associations
 

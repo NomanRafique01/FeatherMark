@@ -35,6 +35,11 @@ win:
   target:
     - nsis
 nsis:
+  # Keep the assisted installer on NSIS's native determinate InstFiles page.
+  # ZIP-backed app payloads extract in smaller file steps, so the progress
+  # indicator advances left-to-right instead of appearing to pause between
+  # large solid-archive chunks.
+  useZip: true
   # Remove the legacy ProgID created by early FeatherMark installers.
   include: build/installer.nsh
   artifactName: ${productName}-Setup-${version}.${ext}
@@ -46,5 +51,8 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: FeatherMark
-  deleteAppDataOnUninstall: false
+  # Full uninstall removes FeatherMark's per-user settings and session data.
+  # Upgrades remain safe: electron-builder only passes --delete-app-data for
+  # a real uninstall, not when replacing an existing installation.
+  deleteAppDataOnUninstall: true
   runAfterFinish: true

@@ -18,6 +18,8 @@ FeatherMark v2 is a major writing-workflow release: edit Markdown as source or a
 - Light, dark, and system themes
 - Tabs, recent files, session restore, find and replace, outline navigation, drag-and-drop opening, and split/editor/preview layouts
 
+Installer lifecycle hardening and smoother installation progress are included in the follow-up patch release [v2.0.1](RELEASE_NOTES_v2.0.1.md).
+
 ## Compatibility
 
 - Windows 10 or Windows 11, 64-bit
