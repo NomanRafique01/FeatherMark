@@ -17,6 +17,7 @@ app.setAppUserModelId('com.feathermark.app');
 settings.configure(appUserData);
 
 const MARKDOWN_FILE_RE = /\.(md|markdown|mdown|mkdn|mkd|mdwn)$/i;
+const EXPLORER_MARKDOWN_FILE_RE = /\.(md|markdown)$/i;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 let pendingExternalFile = findMarkdownArgument(process.argv);
 let rendererReady = false;
@@ -44,6 +45,79 @@ function findMarkdownArgument(args) {
     if (MARKDOWN_FILE_RE.test(candidate) && fs.existsSync(candidate)) return candidate;
   }
   return null;
+}
+
+function folderDisplayName(folderPath) {
+  const normalized = folderPath.replace(/[\\/]+$/, '');
+  return path.basename(normalized) || path.parse(normalized).root || normalized;
+}
+
+function folderErrorMessage(err) {
+  if (!err || !err.code) return 'This folder could not be read.';
+  if (err.code === 'EACCES' || err.code === 'EPERM') return 'Access denied.';
+  if (err.code === 'ENOENT') return 'This folder no longer exists.';
+  return 'Could not read this folder (' + err.code + ').';
+}
+
+function sortFolderEntries(a, b) {
+  if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+  return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+async function readFolderNode(directoryPath) {
+  let entries;
+  try {
+    entries = await fsp.readdir(directoryPath, { withFileTypes: true });
+  } catch (err) {
+    return {
+      type: 'folder',
+      name: folderDisplayName(directoryPath),
+      path: directoryPath,
+      children: [],
+      error: folderErrorMessage(err),
+    };
+  }
+
+  const children = [];
+  for (const entry of entries) {
+    const entryPath = path.join(directoryPath, entry.name);
+    if (entry.isDirectory()) {
+      // Directory symlinks are intentionally not followed. This keeps the
+      // tree finite and prevents linked directories from creating cycles.
+      children.push(await readFolderNode(entryPath));
+    } else if (entry.isFile() && EXPLORER_MARKDOWN_FILE_RE.test(entry.name)) {
+      children.push({ type: 'file', name: entry.name, path: entryPath });
+    }
+  }
+
+  children.sort(sortFolderEntries);
+  return {
+    type: 'folder',
+    name: folderDisplayName(directoryPath),
+    path: directoryPath,
+    children,
+  };
+}
+
+async function readFolderTree(folderPath) {
+  if (typeof folderPath !== 'string' || folderPath.trim().length === 0) {
+    return { ok: false, error: 'Choose a folder to open.' };
+  }
+
+  const resolvedPath = path.resolve(folderPath);
+  let stat;
+  try {
+    stat = await fsp.stat(resolvedPath);
+  } catch (err) {
+    return { ok: false, error: 'The folder could not be opened (' + (err.code || 'unknown error') + ').' };
+  }
+  if (!stat.isDirectory()) return { ok: false, error: 'That path is not a folder.' };
+
+  try {
+    return { ok: true, root: await readFolderNode(resolvedPath) };
+  } catch (err) {
+    return { ok: false, error: 'The folder could not be scanned (' + (err.code || 'unknown error') + ').' };
+  }
 }
 
 function bringToFront() {
@@ -446,6 +520,17 @@ ipcMain.handle('feathermark:open-file-dialog', async () => {
   return result.filePaths[0];
 });
 
+ipcMain.handle('feathermark:open-folder-dialog', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Open folder',
+    properties: ['openDirectory'],
+  });
+  if (result.canceled) return null;
+  return result.filePaths[0];
+});
+
+ipcMain.handle('feathermark:read-folder-tree', (_event, folderPath) => readFolderTree(folderPath));
+
 // ---- Theme: OS changes + manual override both flow to renderer and window bg ----
 
 nativeTheme.on('updated', () => {
@@ -548,6 +633,11 @@ async function checkUnsavedBeforeExit(event) {
   if (isClosingOrQuitting) return;
   isClosingOrQuitting = true;
 
+  // A close request can originate from the taskbar while the window is
+  // minimised or behind another app. Make the pending in-app confirmation
+  // visible before asking the renderer to open it.
+  bringToFront();
+
   if (tabs.size > 1) {
     const tabsChoice = await promptRenderer(
       'feathermark:confirm-tabs-exit-request',
@@ -607,13 +697,19 @@ async function checkUnsavedBeforeExit(event) {
 }
 
 app.on('before-quit', (event) => {
+  if (quitResolved) return;
+
   if (mainWindow && !mainWindow.isDestroyed()) {
-    // The window 'close' event runs the confirm flow with a cancellable event;
-    // prevent this quit round from tearing the app down underneath it. If the
-    // flow ends in Cancel, the app simply keeps running.
-    if (!quitResolved) event.preventDefault();
+    // Windows can enter through before-quit (for example, the taskbar's
+    // Close-window command) instead of delivering the BrowserWindow close
+    // event first. Route that request back through close() so the existing
+    // multi-tab and unsaved-work banners always get a live renderer surface.
+    event.preventDefault();
+    bringToFront();
+    mainWindow.close();
     return;
   }
+
   checkUnsavedBeforeExit();
 });
 

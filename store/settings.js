@@ -140,6 +140,8 @@ module.exports = {
       outlineOpen: false,
       toolbarOpen: false,
       focusMode: false,
+      workspaceFolder: null,
+      workspaceExpanded: [],
       splitRatio: 0.5,
       windowMaximized: true,
       session: null,

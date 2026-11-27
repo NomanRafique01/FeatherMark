@@ -606,17 +606,22 @@ export function Editor(props) {
     ...editorProps
   } = props;
 
+  // The format picker belongs to the editor-only workspace. Split is deliberately
+  // stable: source code stays on the left while the rendered document stays on
+  // the right, regardless of the last format selected in Editor mode.
+  const activeFormat = showEditorFormat ? editorFormat : 'markdown';
+
   const richEditorProps = {
     ...editorProps,
     text: editorProps.initialText || '',
   };
 
-  return h('div', { class: `editor-pane-container is-${editorFormat}` },
+  return h('div', { class: `editor-pane-container is-${activeFormat}` },
     showEditorFormat && h('div', { class: 'editor-modebar' },
       h('span', { class: 'editor-modebar-label' }, 'Editing format'),
-      h(EditorFormatToggle, { value: editorFormat, onChange: onEditorFormatChange }),
+      h(EditorFormatToggle, { value: activeFormat, onChange: onEditorFormatChange }),
     ),
-    editorFormat === 'plain'
+    activeFormat === 'plain'
       ? h(RichEditor, richEditorProps)
       : h(CodeEditor, { ...editorProps, editorFormat: 'markdown' }),
   );

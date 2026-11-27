@@ -4,12 +4,14 @@
 
 import { h, Fragment } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { ThemeToggle, useSlidingPill } from './ThemeToggle.jsx';
+import { ThemeToggle } from './ThemeToggle.jsx';
+import { SegmentedToggle } from './SegmentedToggle.jsx';
 
 const MENUS = {
   File: [
     ['New file', 'new-file'],
     ['Open file', 'open-file'],
+    ['Open folder', 'open-folder'],
     ['Save file', 'save-file'],
     ['Save file as…', 'save-file-as'],
   ],
@@ -85,36 +87,27 @@ function ModeIcon({ name }) {
   );
 }
 
+const MODE_OPTIONS = [
+  { value: 'editor', label: 'Editor', icon: 'editor' },
+  { value: 'split', label: 'Split', icon: 'split' },
+  { value: 'preview', label: 'Preview', icon: 'preview' },
+  { value: 'focus', label: 'Focus', icon: 'focus' },
+];
+
 function ModeToggle({ value, onChange }) {
-  const { containerRef, pillRef } = useSlidingPill(value);
-
-  const options = [
-    { value: 'editor', label: 'Editor', icon: 'editor' },
-    { value: 'split', label: 'Split', icon: 'split' },
-    { value: 'preview', label: 'Preview', icon: 'preview' },
-    { value: 'focus', label: 'Focus', icon: 'focus' },
-  ];
-
-  return h('div', {
-    ref: containerRef,
-    class: 'menu-segmented',
-    role: 'group',
-    'aria-label': 'Editor mode',
-  },
-    h('span', { ref: pillRef, class: 'menu-segment-pill', 'aria-hidden': 'true' }),
-    options.map((option) => h('button', {
-      key: option.value,
-      type: 'button',
-      class: 'menu-segment is-' + option.value,
-      'aria-pressed': String(value === option.value),
-      'aria-label': option.label,
-      title: option.label,
-      onClick: () => onChange(option.value),
-    },
+  return h(SegmentedToggle, {
+    options: MODE_OPTIONS,
+    value,
+    onChange,
+    ariaLabel: 'Editor mode',
+    className: 'menu-segmented',
+    pillClassName: 'menu-segment-pill',
+    optionClassName: (option) => 'menu-segment is-' + option.value,
+    renderOption: (option) => [
       h('span', { class: 'menu-segment-icon' }, h(ModeIcon, { name: option.icon })),
       h('span', { class: 'menu-segment-label' }, option.label),
-    )),
-  );
+    ],
+  });
 }
 
 function FindIcon() {
@@ -143,7 +136,24 @@ function ToolbarIcon() {
   );
 }
 
-export function AppMenuBar({ mode, onModeChange, themePref, onThemeChange, onMenuAction, findOpen, toolbarOpen }) {
+function FolderIcon() {
+  return h('svg', {
+    width: '15', height: '15', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+    'stroke-width': '1.35', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true',
+  }, h('path', { d: 'M1.8 4.5A1.5 1.5 0 0 1 3.3 3h3l1.3 1.5h5.1A1.5 1.5 0 0 1 14.2 6v5.6a1.5 1.5 0 0 1-1.5 1.5H3.3a1.5 1.5 0 0 1-1.5-1.5V4.5Z' }));
+}
+
+export function AppMenuBar({
+  mode,
+  onModeChange,
+  themePref,
+  onThemeChange,
+  onMenuAction,
+  findOpen,
+  toolbarOpen,
+  explorerOpen = false,
+  folderName = null,
+}) {
   const [openMenu, setOpenMenu] = useState(null);
   const navRef = useRef(null);
 
@@ -197,6 +207,19 @@ export function AppMenuBar({ mode, onModeChange, themePref, onThemeChange, onMen
       ),
     ),
     h('div', { class: 'app-menu-bar' },
+      h('div', { class: 'app-menu-context' },
+        folderName && h('button', {
+          type: 'button',
+          class: 'app-folder-context' + (explorerOpen ? ' is-open' : ' is-closed'),
+          title: folderName,
+          'aria-label': 'Opened folder: ' + folderName,
+          'aria-pressed': String(!!explorerOpen),
+          onClick: () => onMenuAction && onMenuAction('toggle-explorer'),
+        },
+          h('span', { class: 'app-folder-context-icon', 'aria-hidden': 'true' }, h(FolderIcon)),
+          h('span', { class: 'app-folder-context-name' }, folderName),
+        ),
+      ),
       h('div', { class: 'app-menu-spacer' }),
       h('button', {
         type: 'button',

@@ -5,6 +5,13 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+@keyframes fm-pill-liquid-settle {
+  0% { transform: scaleX(1) scaleY(1); }
+  32% { transform: scaleX(var(--pill-stretch, 1.08)) scaleY(0.965); }
+  72% { transform: scaleX(1.025) scaleY(0.99); }
+  100% { transform: scaleX(1) scaleY(1); }
+}
+
 html, body, #root { height: 100%; }
 
 body {
@@ -45,6 +52,25 @@ button {
   background: none;
   border: none;
   cursor: pointer;
+  transition: transform var(--transition-base);
+}
+
+button:not(:disabled):active {
+  transform: translateY(0.5px) scale(0.975);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  .theme-segment-pill,
+  .menu-segment-pill,
+  .editor-format-pill {
+    transition-duration: 0.01ms !important;
+  }
 }
 
 :focus-visible {
@@ -273,6 +299,44 @@ button {
 
 .app-menu-spacer { flex: 1 1 0; }
 
+.app-menu-context {
+  min-width: 0;
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.app-folder-context {
+  min-width: 0;
+  max-width: clamp(10rem, 24vw, 22rem);
+  padding: 4px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-control);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-align: left;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.app-folder-context:hover { background: var(--surface-hover); color: var(--text-primary); }
+.app-folder-context:active { background: var(--surface-active); }
+
+.app-folder-context-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--accent);
+}
+
+.app-folder-context-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---- Theme Toggle (system / light / dark) ---- */
 
 .theme-segmented {
@@ -296,15 +360,30 @@ button {
   left: 3px;
   width: 38px;
   height: calc(100% - 6px);
-  background: var(--brand-green);
-  border-radius: 6px;
   z-index: 0;
   pointer-events: none;
-  box-shadow: 0 1px 5px rgba(66, 100, 57, 0.30);
   transform: translateX(0);
-  transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1),
-              width 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    transform var(--dur-pill-glide) var(--ease-pill-glide),
+    width var(--dur-pill-glide) var(--ease-pill-glide);
   will-change: transform, width;
+}
+
+.theme-segment-pill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--brand-green);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 1px 5px rgba(66, 100, 57, 0.30);
+  transform: scaleX(1);
+  transform-origin: var(--pill-stretch-origin, center) center;
+}
+
+.theme-segment-pill.is-liquid::after,
+.menu-segment-pill.is-liquid::after,
+.editor-format-pill.is-liquid::after {
+  animation: fm-pill-liquid-settle var(--dur-pill-settle) var(--ease-pill-settle) both;
 }
 
 .theme-segment {
@@ -365,15 +444,24 @@ button {
   top: 3px;
   left: 3px;
   height: calc(100% - 6px);
-  background: var(--brand-green);
-  border-radius: 6px;
   z-index: 0;
   pointer-events: none;
-  box-shadow: 0 1px 5px rgba(66, 100, 57, 0.30);
   transform: translateX(0);
-  transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1),
-              width 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    transform var(--dur-pill-glide) var(--ease-pill-glide),
+    width var(--dur-pill-glide) var(--ease-pill-glide);
   will-change: transform, width;
+}
+
+.menu-segment-pill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--brand-green);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 1px 5px rgba(66, 100, 57, 0.30);
+  transform: scaleX(1);
+  transform-origin: var(--pill-stretch-origin, center) center;
 }
 
 .menu-segment {
@@ -488,6 +576,7 @@ button {
   .app-menu-bar { padding-right: var(--space-2); }
   .menu-segment-label { display: none; }
   .menu-segment { padding: 4px 8px; }
+  .app-folder-context { max-width: 9rem; }
 }
 
 /* Wider narrow-window collapse: hide even theme segment labels + tighten gaps */
@@ -495,6 +584,8 @@ button {
   .app-menu-bar { gap: 6px; padding: 0 var(--space-2); }
   .chrome-icon-btn { width: 28px; height: 28px; }
   .find-toggle-chrome-btn { width: 28px; height: 28px; }
+  .app-menu-context { gap: 4px; }
+  .app-folder-context { max-width: 7.5rem; gap: 4px; }
 }
 
 /* ---- Tab bar (DESIGN_TOKENS.md §3 interface tokens) ---- */
@@ -681,6 +772,197 @@ button {
   background: var(--border);
   color: var(--text-secondary);
   font-size: var(--text-xs);
+}
+
+/* ---- Folder Explorer ---- */
+
+.folder-explorer {
+  flex: 0 0 var(--explorer-collapsed-width);
+  width: var(--explorer-collapsed-width);
+  min-width: var(--explorer-collapsed-width);
+  max-width: var(--explorer-collapsed-width);
+  height: 100%;
+  overflow: hidden;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
+  user-select: none;
+  transition: width var(--transition-slow), min-width var(--transition-slow), max-width var(--transition-slow), border-width var(--transition-slow);
+  z-index: 20;
+}
+
+.folder-explorer.is-open {
+  flex-basis: var(--explorer-width);
+  width: var(--explorer-width);
+  min-width: var(--explorer-width);
+  max-width: var(--explorer-width);
+}
+
+.explorer-inner {
+  width: var(--explorer-width);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity var(--transition-fast), transform var(--transition-slow);
+}
+
+.folder-explorer.is-closed .explorer-inner { width: var(--explorer-collapsed-width); }
+.folder-explorer.is-closed .explorer-title,
+.folder-explorer.is-closed .explorer-tree-wrap,
+.folder-explorer.is-closed .explorer-status { display: none; }
+.folder-explorer.is-closed .explorer-header { justify-content: center; padding-inline: 0; }
+
+.folder-explorer.is-open .explorer-inner {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.folder-explorer.is-closed .explorer-inner {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.explorer-header {
+  min-height: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.explorer-collapse-toggle {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-control);
+  color: var(--text-muted);
+  transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+}
+
+.explorer-collapse-toggle:hover { background: var(--surface-hover); color: var(--text-primary); }
+.explorer-collapse-toggle:active { transform: scale(0.94); }
+.folder-explorer.is-closed .explorer-collapse-toggle {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.folder-explorer.is-closed .explorer-collapse-toggle:hover {
+  background: var(--surface-active);
+  color: var(--accent-hover);
+}
+
+.explorer-heading {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.explorer-heading-icon { color: var(--accent); display: inline-flex; flex: none; }
+
+.explorer-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.explorer-tree-wrap {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.explorer-tree,
+.explorer-children {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-1) 0;
+}
+
+.explorer-tree { min-height: 0; flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; }
+.explorer-children { padding-top: 0; padding-bottom: 0; }
+
+.explorer-item {
+  width: calc(100% - var(--space-2));
+  min-width: 0;
+  min-height: 1.75rem;
+  margin: 1px var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  padding-left: calc(var(--space-3) + var(--explorer-indent) * var(--explorer-depth));
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-control);
+  color: var(--text-secondary);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.explorer-item:hover { background: var(--surface-hover); color: var(--text-primary); }
+.explorer-item:focus-visible { outline-offset: -1px; }
+
+.explorer-item.is-active {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.explorer-item-icon,
+.explorer-chevron,
+.explorer-chevron-spacer,
+.explorer-item-error {
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.explorer-chevron { color: var(--text-muted); }
+.explorer-chevron-empty { width: 3px; height: 3px; border-radius: 50%; background: var(--border-strong); }
+.explorer-item-icon { color: var(--accent); }
+.explorer-file .explorer-item-icon { color: var(--text-muted); }
+.explorer-item-error { margin-left: auto; color: var(--warning); }
+
+.explorer-item-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-status,
+.explorer-empty {
+  padding: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.explorer-status.is-error { color: var(--danger); }
+
+/* When Outline is open beside an Explorer, keep it an overlay so the editor
+   does not lose two full-width rails at once. Ctrl+Shift+O remains unchanged. */
+.workspace-content.has-explorer.is-explorer-open > .outline-rail {
+  position: absolute;
+  inset: 0 auto 0 var(--explorer-width);
+  z-index: 30;
+  box-shadow: var(--shadow-float);
 }
 
 /* ---- Outline Rail (Phase 06) ---- */
@@ -1211,6 +1493,7 @@ button {
 .shell.is-focus .app-menu-bar,
 .shell.is-focus .statusbar,
 .shell.is-focus .outline-rail,
+.shell.is-focus .folder-explorer,
 .shell.is-focus .editor-toolbar {
   opacity: 0.15;
   transition: opacity var(--transition-slow);
@@ -1222,6 +1505,7 @@ button {
 .shell.is-focus .app-menu-bar:hover,
 .shell.is-focus .statusbar:hover,
 .shell.is-focus .outline-rail:hover,
+.shell.is-focus .folder-explorer:hover,
 .shell.is-focus .editor-toolbar:hover {
   opacity: 1;
 }
@@ -1265,6 +1549,26 @@ button {
 
 /* Responsive auto-collapse at narrow widths */
 @media (max-width: 860px) {
+  .folder-explorer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    height: auto;
+    z-index: 35;
+    box-shadow: var(--shadow-float);
+  }
+
+  .folder-explorer.is-open {
+    width: clamp(14rem, 70vw, 20rem);
+    min-width: clamp(14rem, 70vw, 20rem);
+    max-width: clamp(14rem, 70vw, 20rem);
+  }
+
+  .workspace-content.has-explorer.is-explorer-open > .outline-rail {
+    left: clamp(14rem, 70vw, 20rem);
+  }
+
   .outline-rail {
     position: absolute;
     left: 0;
@@ -1398,14 +1702,23 @@ button {
   top: 2px;
   left: 2px;
   height: calc(100% - 4px);
-  border-radius: 5px;
-  background: var(--brand-green);
-  box-shadow: 0 1px 5px rgba(66, 100, 57, 0.28);
   pointer-events: none;
   transform: translateX(0);
-  transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1),
-              width 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    transform var(--dur-pill-glide) var(--ease-pill-glide),
+    width var(--dur-pill-glide) var(--ease-pill-glide);
   will-change: transform, width;
+}
+
+.editor-format-pill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--brand-green);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 1px 5px rgba(66, 100, 57, 0.28);
+  transform: scaleX(1);
+  transform-origin: var(--pill-stretch-origin, center) center;
 }
 
 .editor-format-option {
@@ -1450,6 +1763,31 @@ button {
 }
 
 .editor-format-icon svg { display: block; width: 14px; height: 14px; }
+
+/* Shared motion layer for every measured SegmentedToggle. Individual control
+   classes above only define their size and type treatment. */
+.segmented-toggle-pill {
+  will-change: transform, width;
+}
+
+.segmented-toggle-pill::after {
+  background: var(--segment-pill-fill);
+  border: 1px solid color-mix(in srgb, var(--segment-pill-fill) 78%, var(--border));
+  transition: background-color 180ms ease-out, border-color 180ms ease-out,
+              box-shadow 180ms ease-out;
+  will-change: transform;
+}
+
+.segmented-toggle-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .segmented-toggle-option:hover:not([aria-pressed="true"]) {
+    color: var(--text-primary);
+  }
+}
 
 @container editor (max-width: 480px) {
   .editor-modebar { padding-inline: var(--space-3); }
@@ -1777,14 +2115,19 @@ button {
   tab-size: 4;
 }
 
-/* Match GitHub's image sizing contract: Markdown/HTML dimensions remain the
-   source of truth; dimensionless images keep their intrinsic size until the
-   content column needs to constrain them. */
+/* Match GitHub's image sizing contract: authored dimensions remain the source
+   of truth, while unconstrained images keep their intrinsic size until the
+   content column needs to constrain them. Images without an authored height
+   derive it from the rendered width so responsive images keep their ratio. */
 .preview-prose img {
   display: inline-block;
   box-sizing: content-box;
   max-width: 100%;
   vertical-align: middle;
+}
+
+.preview-prose img:not([height]) {
+  height: auto;
 }
 
 .preview-prose .markdown-image-fallback {

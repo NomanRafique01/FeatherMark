@@ -2,50 +2,13 @@
 // Used in both AppMenuBar (standard 34px) and Toolbar (compact 26px).
 
 import { h } from 'preact';
-import { useLayoutEffect, useRef } from 'preact/hooks';
+import { SegmentedToggle } from './SegmentedToggle.jsx';
 
 export const THEME_OPTIONS = [
   { value: 'auto', label: 'Follow system theme', icon: 'system' },
   { value: 'light', label: 'Use light theme', icon: 'light' },
   { value: 'dark', label: 'Use dark theme', icon: 'dark' },
 ];
-
-export function useSlidingPill(value) {
-  const containerRef = useRef(null);
-  const pillRef = useRef(null);
-  const mountedRef = useRef(false);
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const pill = pillRef.current;
-    if (!container || !pill) return undefined;
-
-    const syncPill = (instant = false) => {
-      const activeBtn = container.querySelector('[aria-pressed="true"]');
-      if (!activeBtn) return;
-      const padLeft = parseFloat(getComputedStyle(container).paddingLeft) || 0;
-      if (instant) pill.style.transition = 'none';
-      pill.style.transform = `translateX(${activeBtn.offsetLeft - padLeft}px)`;
-      pill.style.width = `${activeBtn.offsetWidth}px`;
-      if (instant) {
-        // Commit layout immediately so subsequent value changes still animate smoothly
-        void pill.offsetWidth;
-        pill.style.transition = '';
-      }
-    };
-
-    // Instant on first mount (no startup slide-in); smooth on user value changes
-    syncPill(!mountedRef.current);
-    mountedRef.current = true;
-
-    // Instant on container resize so the pill tracks fluid button widths with zero lag
-    const observer = new ResizeObserver(() => syncPill(true));
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [value]);
-
-  return { containerRef, pillRef };
-}
 
 export function ThemeIcon({ name, size = 16 }) {
   if (name === 'dark') {
@@ -97,24 +60,16 @@ export function ThemeIcon({ name, size = 16 }) {
 }
 
 export function ThemeToggle({ value, onChange, compact = false }) {
-  const { containerRef, pillRef } = useSlidingPill(value);
   const iconSize = compact ? 13 : 16;
 
-  return h('div', {
-    ref: containerRef,
-    class: 'theme-segmented' + (compact ? ' is-compact' : ''),
-    role: 'group',
-    'aria-label': 'Color theme',
-  },
-    h('span', { ref: pillRef, class: 'theme-segment-pill', 'aria-hidden': 'true' }),
-    THEME_OPTIONS.map((option) => h('button', {
-      key: option.value,
-      type: 'button',
-      class: 'theme-segment is-' + option.value,
-      'aria-pressed': String(value === option.value),
-      'aria-label': option.label,
-      title: option.label,
-      onClick: () => onChange && onChange(option.value),
-    }, h(ThemeIcon, { name: option.icon, size: iconSize }))),
-  );
+  return h(SegmentedToggle, {
+    options: THEME_OPTIONS,
+    value,
+    onChange,
+    ariaLabel: 'Color theme',
+    className: 'theme-segmented' + (compact ? ' is-compact' : ''),
+    pillClassName: 'theme-segment-pill',
+    optionClassName: (option) => 'theme-segment is-' + option.value,
+    renderOption: (option) => h(ThemeIcon, { name: option.icon, size: iconSize }),
+  });
 }

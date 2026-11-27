@@ -27,6 +27,7 @@
   --accent-hover: #466747;
   --accent-soft: #E6EDE4;
   --brand-green: #426439;
+  --segment-pill-fill: #426439;
   --bg-btn: #EAE9E1;
   --bg-btn-hover: #E2E4D9;
 
@@ -57,6 +58,7 @@
   --accent-hover: #B5CBAE;
   --accent-soft: #354538;
   --brand-green: #426439;
+  --segment-pill-fill: #617A5C;
   --bg-btn: #32372F;
   --bg-btn-hover: #394237;
 
@@ -78,6 +80,11 @@
   --space-8:  2rem;      /* 32px */
   --space-12: 3rem;      /* 48px */
   --space-16: 4rem;      /* 64px */
+
+  /* Folder explorer rail — fluid on desktop, compact enough for a split pane. */
+  --explorer-width: clamp(13.5rem, 18vw, 18rem);
+  --explorer-collapsed-width: 2.25rem;
+  --explorer-indent: 1rem;
 
   /* Type: fluid clamped scale — scales with viewport from 768 → 1920px.
      All values use rem so they ride the OS font-scale setting. */
@@ -104,11 +111,21 @@
   /* Radii — decided once: 4px on controls, 0 on panes. The icon squircle stays only on the app mark. */
   --radius-control: 4px;
   --radius-pane: 0px;
+  /* Capsule so the segmented pill keeps reading as one liquid body while it stretches. */
+  --radius-pill: 999px;
 
   /* Motion: 120–160ms, ease-out, transform/opacity only */
   --transition-fast: 120ms ease-out;
   --transition-base: 140ms ease-out;
   --transition-slow: 160ms ease-out;
+
+  /* Segmented-control pill. Two curves on purpose: the pill glides to its slot
+     on `glide`, and the squash it stretches into recovers on the longer
+     `settle`, so it reads as one liquid body instead of a sliding rectangle. */
+  --dur-pill-glide: 340ms;
+  --dur-pill-settle: 360ms;
+  --ease-pill-glide: cubic-bezier(0.22, 1.18, 0.36, 1);
+  --ease-pill-settle: cubic-bezier(0.22, 0.86, 0.32, 1);
 
   /* Elevation: shadows exist ONLY on floating things (menu, dialog, overlay). */
   --shadow-float: 0 4px 16px rgba(20, 24, 18, 0.18);

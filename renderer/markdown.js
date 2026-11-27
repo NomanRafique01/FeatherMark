@@ -97,7 +97,20 @@ const REMOVE_HTML_TAGS = new Set(['iframe', 'object', 'script', 'style', 'textar
 const ALIGNABLE_HTML_TAGS = new Set(['div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p']);
 
 function safeDimension(value) {
-  const number = Number.parseInt(value, 10);
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  // GitHub preserves percentage widths such as width="90%". Keep that
+  // responsive value instead of parseInt() collapsing it to 90 pixels.
+  if (/^\d+(?:\.\d+)?%$/.test(raw)) {
+    const percentage = Number.parseFloat(raw);
+    return Number.isFinite(percentage) && percentage > 0 && percentage <= 100
+      ? `${percentage}%`
+      : '';
+  }
+
+  if (!/^\d+$/.test(raw)) return '';
+  const number = Number(raw);
   return Number.isFinite(number) && number > 0 && number <= 4096 ? String(number) : '';
 }
 

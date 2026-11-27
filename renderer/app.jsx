@@ -19,6 +19,7 @@ import { Toolbar } from './components/Toolbar.jsx';
 import { FindReplace } from './components/FindReplace.jsx';
 import { AppMenuBar } from './components/AppMenuBar.jsx';
 import { AppHeader } from './components/AppHeader.jsx';
+import { FolderExplorer } from './components/FolderExplorer.jsx';
 
 const THEME_PREFS = ['auto', 'light', 'dark'];
 const VIEW_MODES = ['split', 'preview-only', 'editor-only'];
@@ -169,6 +170,48 @@ function RecentFiles({ recents, onOpen, onForget, onClearMissing, onClearAll }) 
   );
 }
 
+function WelcomeScreen({ recents, onOpenFile, onOpenFolder, onNewFile, onRecentClick, onForget, onClearMissing, onClearAll }) {
+  return h('main', { class: 'empty' },
+    h('div', { class: 'empty-shell' },
+      h('div', { class: 'empty-hero' },
+        h('img', {
+          class: 'empty-logo',
+          src: '../assets/icon.png',
+          alt: '',
+          width: 96,
+          height: 96,
+          draggable: false,
+        }),
+        h('p', { class: 'empty-hint' }, 'Open a file or folder to start writing, or press Ctrl+O.'),
+        h('div', { class: 'empty-actions' },
+          h('button', {
+            type: 'button',
+            class: 'empty-action',
+            onClick: onOpenFile,
+          }, h(FolderOpenIcon), h('span', null, 'Open a file')),
+          h('button', {
+            type: 'button',
+            class: 'empty-action-secondary',
+            onClick: onOpenFolder,
+          }, h(FolderOpenIcon), h('span', null, 'Open a folder')),
+          h('button', {
+            type: 'button',
+            class: 'empty-action-secondary',
+            onClick: onNewFile,
+          }, h(FilePlusIcon), h('span', null, 'New document')),
+        ),
+      ),
+      h(RecentFiles, {
+        recents,
+        onOpen: onRecentClick,
+        onForget,
+        onClearMissing,
+        onClearAll,
+      }),
+    ),
+  );
+}
+
 // ---- Confirm close dialog ----
 
 function ConfirmCloseDialog({
@@ -272,6 +315,11 @@ function App() {
   const [viewMode, setViewMode] = useState('split');
   const [editorFormat, setEditorFormat] = useState('markdown');
   const [outlineOpen, setOutlineOpen] = useState(false);
+  const [folderRoot, setFolderRoot] = useState(null);
+  const [expandedFolders, setExpandedFolders] = useState(() => new Set());
+  const [explorerOpen, setExplorerOpen] = useState(false);
+  const [folderLoading, setFolderLoading] = useState(false);
+  const [folderError, setFolderError] = useState(null);
   const [toolbarOpen, setToolbarOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
@@ -331,6 +379,8 @@ function App() {
   function runChromeMenuAction(action) {
     if (action === 'new-file') newFile();
     else if (action === 'open-file') window.feathermark.openFileDialog().then((p) => p && openPath(p));
+    else if (action === 'open-folder') openFolderDialog();
+    else if (action === 'toggle-explorer') toggleExplorer();
     else if (action === 'save-file') saveActive();
     else if (action === 'save-file-as') saveAsActive();
     else if (action === 'find-replace') setFindOpen(true);
@@ -351,6 +401,24 @@ function App() {
     setOutlineOpen((cur) => {
       const next = !cur;
       window.feathermark.setSettings('outlineOpen', next);
+      return next;
+    });
+  }
+
+  function toggleExplorer() {
+    setExplorerOpen((cur) => {
+      const next = !cur;
+      window.feathermark.setSettings('explorerOpen', next);
+      return next;
+    });
+  }
+
+  function toggleFolder(folderPath) {
+    setExpandedFolders((current) => {
+      const next = new Set(current);
+      if (next.has(folderPath)) next.delete(folderPath);
+      else next.add(folderPath);
+      window.feathermark.setSettings('workspaceExpanded', [...next]);
       return next;
     });
   }
@@ -533,6 +601,36 @@ function App() {
     setActiveId(tab.id);
     if (register) await window.feathermark.tabOpened(tab.id, tab.path);
     return tab.id;
+  }
+
+  async function loadFolder(folderPath, { restoreExpanded = [], persist = true, open = true } = {}) {
+    setFolderLoading(true);
+    setFolderError(null);
+    const result = await window.feathermark.readFolderTree(folderPath);
+    setFolderLoading(false);
+    if (!result.ok) {
+      setFolderError(result.error);
+      setNotice({ text: result.error, tone: 'danger' });
+      return false;
+    }
+
+    const nextExpanded = new Set(Array.isArray(restoreExpanded) ? restoreExpanded : []);
+    nextExpanded.add(result.root.path);
+    setFolderRoot(result.root);
+    setExpandedFolders(nextExpanded);
+    setExplorerOpen(open);
+    setFolderError(null);
+    if (persist) {
+      window.feathermark.setSettings('workspaceFolder', result.root.path);
+      window.feathermark.setSettings('workspaceExpanded', [...nextExpanded]);
+      window.feathermark.setSettings('explorerOpen', open);
+    }
+    return true;
+  }
+
+  async function openFolderDialog() {
+    const folderPath = await window.feathermark.openFolderDialog();
+    if (folderPath) await loadFolder(folderPath);
   }
 
   async function openPath(pathToOpen) {
@@ -872,6 +970,8 @@ function App() {
 
     off.push(window.feathermark.onMenu((action) => {
       if (action === 'open-file') window.feathermark.openFileDialog().then((p) => p && openPath(p));
+      else if (action === 'open-folder') openFolderDialog();
+      else if (action === 'toggle-explorer') toggleExplorer();
       else if (action === 'new-file') newFile();
       else if (action === 'save-file') saveActive();
       else if (action === 'save-file-as') saveAsActive();
@@ -939,6 +1039,17 @@ function App() {
       }),
       window.feathermark.getSettings('focusMode', false).then((v) => {
         if (!cancelled) setFocusMode(!!v);
+      }),
+      window.feathermark.getSettings('explorerOpen', false).then((v) => {
+        if (!cancelled) setExplorerOpen(!!v);
+      }),
+      window.feathermark.getSettings('workspaceFolder', null).then(async (folderPath) => {
+        if (cancelled || !folderPath) return;
+        const [expanded, open] = await Promise.all([
+          window.feathermark.getSettings('workspaceExpanded', []),
+          window.feathermark.getSettings('explorerOpen', true),
+        ]);
+        if (!cancelled) await loadFolder(folderPath, { restoreExpanded: expanded, persist: false, open: !!open });
       }),
       refreshRecents(),
       restoreSession(),
@@ -1111,6 +1222,8 @@ function App() {
         onMenuAction: runChromeMenuAction,
         findOpen,
         toolbarOpen,
+        explorerOpen,
+        folderName: folderRoot ? folderRoot.name : null,
       }),
       h(TabBar, { tabs, activeId, onSelect: focusTab, onClose: closeTab, onNew: promptNewTabAction, onReorder: reorderTabs }),
       tabs.length > 0 && h(Toolbar, {
@@ -1127,48 +1240,47 @@ function App() {
           }, h('path', { d: 'M4.5 4.5l7 7M11.5 4.5l-7 7' }))),
       ),
       loading && h('div', { class: 'loading', role: 'status' }, 'Opening file…'),
-      tabs.length === 0 ? h('main', { class: 'empty' },
-        h('div', { class: 'empty-shell' },
-          h('div', { class: 'empty-hero' },
-            h('img', {
-              class: 'empty-logo',
-              src: '../assets/icon.png',
-              alt: '',
-              width: 96,
-              height: 96,
-              draggable: false,
-            }),
-            h('p', { class: 'empty-hint' }, 'Open a file to start writing, or press Ctrl+O.'),
-            h('div', { class: 'empty-actions' },
-              h('button', {
-                type: 'button',
-                class: 'empty-action',
-                onClick: () => window.feathermark.openFileDialog().then((p) => p && openPath(p)),
-              }, h(FolderOpenIcon), h('span', null, 'Open a file')),
-              h('button', {
-                type: 'button',
-                class: 'empty-action-secondary',
-                onClick: newFile,
-              }, h(FilePlusIcon), h('span', null, 'New document')),
-            ),
-          ),
-          h(RecentFiles, {
+      tabs.length === 0 && !folderRoot
+        ? h(WelcomeScreen, {
             recents,
-            onOpen: onRecentClick,
+            onOpenFile: () => window.feathermark.openFileDialog().then((p) => p && openPath(p)),
+            onOpenFolder: openFolderDialog,
+            onNewFile: newFile,
+            onRecentClick,
             onForget: forgetRecent,
             onClearMissing: clearMissingRecents,
             onClearAll: clearAllRecents,
-          }),
-        ),
-      ) : h('div', { class: 'workspace-content' },
-        h(Outline, {
-          text: active ? active.text : '',
+          })
+        : h('div', { class: 'workspace-content' + (folderRoot ? ' has-explorer' : '') + (folderRoot && explorerOpen ? ' is-explorer-open' : '') },
+        folderRoot && h(FolderExplorer, {
+          root: folderRoot,
+          isOpen: explorerOpen,
+          expandedPaths: expandedFolders,
+          activePath: active ? normalizePath(active.path) : null,
+          loading: folderLoading,
+          error: folderError,
+          onToggleFolder: toggleFolder,
+          onOpenFile: openPath,
+          onClose: toggleExplorer,
+        }),
+        active && h(Outline, {
+          text: active.text,
           activeLine: cursorPos.line - 1,
           isOpen: outlineOpen,
           onSelectHeading,
           onClose: () => toggleOutline(),
         }),
-        h('main', { ref: panesContainerRef, class: 'workspace-panes is-' + viewMode },
+        !active && h(WelcomeScreen, {
+          recents,
+          onOpenFile: () => window.feathermark.openFileDialog().then((p) => p && openPath(p)),
+          onOpenFolder: openFolderDialog,
+          onNewFile: newFile,
+          onRecentClick,
+          onForget: forgetRecent,
+          onClearMissing: clearMissingRecents,
+          onClearAll: clearAllRecents,
+        }),
+        active && h('main', { ref: panesContainerRef, class: 'workspace-panes is-' + viewMode },
           active && h(FindReplace, {
             isOpen: findOpen,
             matchesCount,

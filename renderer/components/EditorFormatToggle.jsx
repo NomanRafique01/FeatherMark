@@ -2,7 +2,12 @@
 // Uses the same sliding-pill language as the global theme/view controls.
 
 import { h } from 'preact';
-import { useSlidingPill } from './ThemeToggle.jsx';
+import { SegmentedToggle } from './SegmentedToggle.jsx';
+
+const FORMAT_OPTIONS = [
+  { value: 'plain', label: 'Plain text', icon: 'plain' },
+  { value: 'markdown', label: 'Markdown', icon: 'markdown' },
+];
 
 function FormatIcon({ name }) {
   const common = {
@@ -33,30 +38,17 @@ function FormatIcon({ name }) {
 }
 
 export function EditorFormatToggle({ value = 'markdown', onChange }) {
-  const { containerRef, pillRef } = useSlidingPill(value);
-  const options = [
-    { value: 'plain', label: 'Plain text', icon: 'plain' },
-    { value: 'markdown', label: 'Markdown', icon: 'markdown' },
-  ];
-
-  return h('div', {
-    ref: containerRef,
-    class: 'editor-format-toggle',
-    role: 'group',
-    'aria-label': 'Editing format',
-  },
-    h('span', { ref: pillRef, class: 'editor-format-pill', 'aria-hidden': 'true' }),
-    options.map((option) => h('button', {
-      key: option.value,
-      type: 'button',
-      class: 'editor-format-option',
-      'aria-pressed': String(value === option.value),
-      'aria-label': `Edit as ${option.label}`,
-      title: `Edit as ${option.label}`,
-      onClick: () => onChange && onChange(option.value),
-    },
+  return h(SegmentedToggle, {
+    options: FORMAT_OPTIONS.map((option) => ({ ...option, ariaLabel: `Edit as ${option.label}` })),
+    value,
+    onChange,
+    ariaLabel: 'Editing format',
+    className: 'editor-format-toggle',
+    pillClassName: 'editor-format-pill',
+    optionClassName: () => 'editor-format-option',
+    renderOption: (option) => [
       h('span', { class: 'editor-format-icon' }, h(FormatIcon, { name: option.icon })),
       h('span', { class: 'editor-format-label' }, option.label),
-    )),
-  );
+    ],
+  });
 }

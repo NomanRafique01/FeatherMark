@@ -12,9 +12,11 @@
 //   appReady()                        -> (fire and forget)     feathermark:app-ready
 //   onThemeChanged(cb)                -> unsubscribe fn        ipc event feathermark:theme-changed
 //   onMenu(cb)                        -> unsubscribe fn        ipc event feathermark:menu
-//                                                  ('new-file'|'open-file'|'save-file'|'save-file-as'|'close-tab'|'find-replace'|'toggle-preview'|'toggle-outline')
+//                                                  ('new-file'|'open-file'|'open-folder'|'save-file'|'save-file-as'|'close-tab'|'find-replace'|'toggle-preview'|'toggle-outline')
 // Files (phase 03)
 //   openFileDialog()                  -> Promise<string|null>  feathermark:open-file-dialog
+//   openFolderDialog()                -> Promise<string|null>  feathermark:open-folder-dialog
+//   readFolderTree(path)              -> Promise<{ok, root?} | {ok:false, error}> feathermark:read-folder-tree
 //   open(path)                        -> Promise<{ok, content?} | {ok:false, error}>   feathermark:open
 //   save(tabId, text)                 -> Promise<{ok, path?} | {ok:false, error}>      feathermark:save
 //   saveAs(tabId, text)               -> same, or {ok:false, canceled:true}            feathermark:save-as
@@ -54,6 +56,8 @@ contextBridge.exposeInMainWorld('feathermark', {
   appReady: () => ipcRenderer.send('feathermark:app-ready'),
 
   openFileDialog: () => ipcRenderer.invoke('feathermark:open-file-dialog'),
+  openFolderDialog: () => ipcRenderer.invoke('feathermark:open-folder-dialog'),
+  readFolderTree: (folderPath) => ipcRenderer.invoke('feathermark:read-folder-tree', folderPath),
   open: (filePath) => ipcRenderer.invoke('feathermark:open', filePath),
   save: (tabId, text) => ipcRenderer.invoke('feathermark:save', tabId, text),
   saveAs: (tabId, text) => ipcRenderer.invoke('feathermark:save-as', tabId, text),
