@@ -31,9 +31,28 @@ function ChevronIcon({ expanded }) {
 
 function SidebarToggleIcon({ expanded }) {
   return h('svg', {
-    width: '16',
-    height: '16',
-    viewBox: '0 0 16 16',
+    width: '18',
+    height: '18',
+    viewBox: '0 0 18 18',
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '1.45',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'aria-hidden': 'true',
+  },
+    h('path', { d: 'M3.5 3.25v11.5M7 3.25v11.5' }),
+    expanded
+      ? h('polyline', { points: '12.1,5.7 9.25,9 12.1,12.3' })
+      : h('polyline', { points: '8.8,5.7 11.65,9 8.8,12.3' }),
+  );
+}
+
+function WorkspaceIcon() {
+  return h('svg', {
+    width: '18',
+    height: '18',
+    viewBox: '0 0 18 18',
     fill: 'none',
     stroke: 'currentColor',
     'stroke-width': '1.35',
@@ -41,11 +60,11 @@ function SidebarToggleIcon({ expanded }) {
     'stroke-linejoin': 'round',
     'aria-hidden': 'true',
   },
-    h('rect', { x: '2', y: '2', width: '12', height: '12', rx: '1.75' }),
-    h('line', { x1: '6', y1: '2.25', x2: '6', y2: '13.75' }),
-    expanded
-      ? h('polyline', { points: '4.75,6.1 3,8 4.75,9.9' })
-      : h('polyline', { points: '3.25,6.1 5,8 3.25,9.9' }),
+    h('path', { d: 'M2.5 5.15a1.4 1.4 0 0 1 1.4-1.4h3.35l1.25 1.5h5.6a1.4 1.4 0 0 1 1.4 1.4v6.2a1.4 1.4 0 0 1-1.4 1.4H3.9a1.4 1.4 0 0 1-1.4-1.4V5.15Z' }),
+    h('path', { d: 'M5.5 8.3v3.95M5.5 10.25h3.2M8.7 10.25V8.35h2.95' }),
+    h('circle', { cx: '5.5', cy: '8.3', r: '0.9', fill: 'currentColor', stroke: 'none' }),
+    h('circle', { cx: '8.7', cy: '10.25', r: '0.9', fill: 'currentColor', stroke: 'none' }),
+    h('circle', { cx: '11.65', cy: '8.35', r: '0.9', fill: 'currentColor', stroke: 'none' }),
   );
 }
 
@@ -147,13 +166,13 @@ export function FolderExplorer({
 
   return h('aside', {
     class: 'folder-explorer' + (isOpen ? ' is-open' : ' is-closed'),
-    'aria-label': 'Folder explorer',
+    'aria-label': 'Workspace files',
   },
     h('div', { class: 'explorer-inner' },
       h('div', { class: 'explorer-header' },
         h('div', { class: 'explorer-heading' },
-          h('span', { class: 'explorer-heading-icon', 'aria-hidden': 'true' }, h(FolderIcon, { expanded: true })),
-          h('h2', { class: 'explorer-title' }, 'Explorer'),
+          h('span', { class: 'explorer-heading-icon', 'aria-hidden': 'true' }, h(WorkspaceIcon)),
+          h('h2', { class: 'explorer-title' }, 'Workspace'),
         ),
         h('button', {
           type: 'button',

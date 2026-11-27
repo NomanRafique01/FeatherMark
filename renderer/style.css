@@ -811,6 +811,7 @@ button:disabled {
 .folder-explorer.is-closed .explorer-title,
 .folder-explorer.is-closed .explorer-tree-wrap,
 .folder-explorer.is-closed .explorer-status { display: none; }
+.folder-explorer.is-closed .explorer-heading { display: none; }
 .folder-explorer.is-closed .explorer-header { justify-content: center; padding-inline: 0; }
 
 .folder-explorer.is-open .explorer-inner {
@@ -835,13 +836,13 @@ button:disabled {
 }
 
 .explorer-collapse-toggle {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
   border-radius: var(--radius-control);
   color: var(--text-muted);
-  transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast), outline-color var(--transition-fast);
 }
 
 .explorer-collapse-toggle:hover { background: var(--surface-hover); color: var(--text-primary); }
@@ -862,7 +863,13 @@ button:disabled {
   gap: var(--space-2);
 }
 
-.explorer-heading-icon { color: var(--accent); display: inline-flex; flex: none; }
+.explorer-heading-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+  display: inline-flex;
+  flex: none;
+}
 
 .explorer-title {
   min-width: 0;
