@@ -18,6 +18,7 @@ files:
   - renderer/dist/**
   - assets/icon.png
   - assets/icon.ico
+  - assets/fileicon.ico
   - package.json
 win:
   icon: assets/icon.ico
@@ -31,7 +32,10 @@ win:
         - mdwn
       name: FeatherMark.Markdown
       description: FeatherMark
-      icon: assets/icon.ico
+      # This is installed into $INSTDIR\resources and registered as the
+      # Markdown ProgID's DefaultIcon. Keep the executable/installer icon
+      # above on assets/icon.ico.
+      icon: assets/fileicon.ico
   target:
     - nsis
 nsis:
