@@ -81,10 +81,6 @@ FeatherMark is distributed as a Windows x64 installer through GitHub Releases.
   <a href="https://github.com/NomanRafique01/FeatherMark/releases/download/v2.0.1/FeatherMark-Setup-2.0.1.exe" title="Download FeatherMark v2.0.1">
     <img src="assets/btn-download-v2.0.1.svg" alt="Download FeatherMark v2.0.1, stable Windows x64 installer" height="74" />
   </a>
-  &nbsp;&nbsp;
-  <a href="https://github.com/NomanRafique01/FeatherMark/releases/download/v2.0.0/FeatherMark-Setup-2.0.0.exe" title="Download FeatherMark v2.0.0">
-    <img src="assets/btn-download-v2.0.0.svg" alt="Download FeatherMark v2.0.0, previous stable Windows x64 installer" height="74" />
-  </a>
 </p>
 
 <p align="center">
@@ -114,12 +110,6 @@ FeatherMark is distributed as a Windows x64 installer through GitHub Releases.
 <td>🔵 Stable</td>
 <td>Windows 10 / 11 (x64)</td>
 <td><a href="https://github.com/NomanRafique01/FeatherMark/releases/download/v2.0.1/FeatherMark-Setup-2.0.1.exe"><strong>FeatherMark-Setup-2.0.1.exe</strong></a></td>
-</tr>
-<tr>
-<td><strong>FeatherMark v2.0.0</strong></td>
-<td>⚪ Previous stable</td>
-<td>Windows 10 / 11 (x64)</td>
-<td><a href="https://github.com/NomanRafique01/FeatherMark/releases/download/v2.0.0/FeatherMark-Setup-2.0.0.exe"><strong>FeatherMark-Setup-2.0.0.exe</strong></a></td>
 </tr>
 </tbody>
 </table>
