@@ -4,7 +4,7 @@
 
 <p align="center"> <strong>A quiet, fast, local-first Markdown editor for Windows.</strong><br /> Write with live preview, persistent tabs, recent files, and a polished native desktop experience — without sending your documents to the cloud. </p>
 
-<p align="center"> <a href="https://github.com/NomanRafique01/FeatherMark/releases/latest"> <img src="https://img.shields.io/badge/Download-Windows%20Installer-426439?style=flat-square&amp;logo=windows&amp;logoColor=white" alt="Download FeatherMark Windows installer" /> </a> <img src="https://img.shields.io/badge/platform-Windows%20x64-0078d4?style=flat-square&amp;logo=windows&amp;logoColor=white" alt="Platform: Windows x64" /> <img src="https://img.shields.io/badge/Electron-desktop-47848f?style=flat-square&amp;logo=electron&amp;logoColor=white" alt="Electron desktop app" /> <a href="https://github.com/NomanRafique01/FeatherMark/blob/main/LICENSE"> <img src="https://img.shields.io/github/license/NomanRafique01/FeatherMark?style=flat-square" alt="MIT license" /> </a> </p>
+<p align="center"> <img src="https://img.shields.io/badge/platform-Windows%20x64-0078d4?style=flat-square&amp;logo=windows&amp;logoColor=white" alt="Platform: Windows x64" /> <img src="https://img.shields.io/badge/Electron-desktop-47848f?style=flat-square&amp;logo=electron&amp;logoColor=white" alt="Electron desktop app" /> <a href="https://github.com/NomanRafique01/FeatherMark/blob/main/LICENSE"> <img src="https://img.shields.io/github/license/NomanRafique01/FeatherMark?style=flat-square" alt="MIT license" /> </a> </p>
 
 ---
 
@@ -73,26 +73,58 @@ Most Markdown tools either feel like a developer IDE or depend on a browser-firs
 
 FeatherMark is distributed as a Windows x64 installer through GitHub Releases.
 
-<p align="center"> <a href="https://github.com/NomanRafique01/FeatherMark/releases/latest"> <img src="https://img.shields.io/badge/Download%20FeatherMark-latest%20Windows%20installer-426439?style=for-the-badge&amp;logo=windows&amp;logoColor=white" alt="Download the latest FeatherMark Windows installer" /> </a> </p>
+<p align="center">
+  <a href="https://github.com/NomanRafique01/FeatherMark/releases/download/v2.0.2/FeatherMark-Setup-2.0.2.exe" title="Download FeatherMark v2.0.2">
+    <img src="assets/btn-download-v2.0.2.svg" alt="Download FeatherMark v2.0.2, latest stable Windows x64 installer" height="74" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/NomanRafique01/FeatherMark/releases/download/v2.0.1/FeatherMark-Setup-2.0.1.exe" title="Download FeatherMark v2.0.1">
+    <img src="assets/btn-download-v2.0.1.svg" alt="Download FeatherMark v2.0.1, stable Windows x64 installer" height="74" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/NomanRafique01/FeatherMark/releases/download/v2.0.0/FeatherMark-Setup-2.0.0.exe" title="Download FeatherMark v2.0.0">
+    <img src="assets/btn-download-v2.0.0.svg" alt="Download FeatherMark v2.0.0, previous stable Windows x64 installer" height="74" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/NomanRafique01/FeatherMark/releases">
+    <img src="https://img.shields.io/badge/All%20Releases-GitHub-426439?style=flat-square&amp;logo=github&amp;logoColor=white" alt="All FeatherMark releases on GitHub" />
+  </a>
+</p>
 
 <table>
 <thead>
 <tr>
-<th>Package</th>
-<th>Description</th>
-<th>Download</th>
+<th>Version</th>
+<th>Release type</th>
+<th>Target OS</th>
+<th>Direct download</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Windows installer</strong> (<code>.exe</code>)</td>
-<td>NSIS setup wizard with an install-location picker, shortcuts, app icon, and real installation progress</td>
-<td><a href="https://github.com/NomanRafique01/FeatherMark/releases/latest">Open the latest release</a></td>
+<td><strong>FeatherMark v2.0.2</strong></td>
+<td>🟢 <strong>Latest stable</strong></td>
+<td>Windows 10 / 11 (x64)</td>
+<td><a href="https://github.com/NomanRafique01/FeatherMark/releases/download/v2.0.2/FeatherMark-Setup-2.0.2.exe"><strong>FeatherMark-Setup-2.0.2.exe</strong></a></td>
+</tr>
+<tr>
+<td><strong>FeatherMark v2.0.1</strong></td>
+<td>🔵 Stable</td>
+<td>Windows 10 / 11 (x64)</td>
+<td><a href="https://github.com/NomanRafique01/FeatherMark/releases/download/v2.0.1/FeatherMark-Setup-2.0.1.exe"><strong>FeatherMark-Setup-2.0.1.exe</strong></a></td>
+</tr>
+<tr>
+<td><strong>FeatherMark v2.0.0</strong></td>
+<td>⚪ Previous stable</td>
+<td>Windows 10 / 11 (x64)</td>
+<td><a href="https://github.com/NomanRafique01/FeatherMark/releases/download/v2.0.0/FeatherMark-Setup-2.0.0.exe"><strong>FeatherMark-Setup-2.0.0.exe</strong></a></td>
 </tr>
 </tbody>
 </table>
 
-The current release artifact is named `FeatherMark-Setup-2.0.0.exe`.
+The current release artifact is named `FeatherMark-Setup-2.0.2.exe`.
 
 > [!NOTE] The latest Windows installer is available from the [GitHub Releases page](https://github.com/NomanRafique01/FeatherMark/releases/latest).
 
@@ -128,7 +160,7 @@ The current release artifact is named `FeatherMark-Setup-2.0.0.exe`.
 ## Installation
 
 1. Open the [latest GitHub Release](https://github.com/NomanRafique01/FeatherMark/releases/latest).
-2. Download `FeatherMark-Setup-2.0.0.exe` or the installer for the release you selected.
+2. Download `FeatherMark-Setup-2.0.2.exe` or the installer for the release you selected.
 3. Run the installer and choose the installation directory.
 4. Launch FeatherMark from the desktop or Start Menu shortcut.
 
