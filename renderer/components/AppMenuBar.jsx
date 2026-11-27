@@ -143,6 +143,24 @@ function FolderIcon() {
   }, h('path', { d: 'M1.8 4.5A1.5 1.5 0 0 1 3.3 3h3l1.3 1.5h5.1A1.5 1.5 0 0 1 14.2 6v5.6a1.5 1.5 0 0 1-1.5 1.5H3.3a1.5 1.5 0 0 1-1.5-1.5V4.5Z' }));
 }
 
+function CloseIcon() {
+  return h('svg', {
+    width: '12', height: '12', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+    'stroke-width': '1.5', 'stroke-linecap': 'round', 'aria-hidden': 'true',
+  },
+    h('path', { d: 'M4.5 4.5l7 7M11.5 4.5l-7 7' }),
+  );
+}
+
+function PlusIcon() {
+  return h('svg', {
+    width: '13', height: '13', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+    'stroke-width': '1.5', 'stroke-linecap': 'round', 'aria-hidden': 'true',
+  },
+    h('path', { d: 'M8 3.5v9M3.5 8h9' }),
+  );
+}
+
 export function AppMenuBar({
   mode,
   onModeChange,
@@ -152,7 +170,10 @@ export function AppMenuBar({
   findOpen,
   toolbarOpen,
   explorerOpen = false,
-  folderName = null,
+  folderTabs = [],
+  activeFolderId = null,
+  onSelectFolder,
+  onCloseFolder,
 }) {
   const [openMenu, setOpenMenu] = useState(null);
   const navRef = useRef(null);
@@ -207,18 +228,44 @@ export function AppMenuBar({
       ),
     ),
     h('div', { class: 'app-menu-bar' },
-      h('div', { class: 'app-menu-context' },
-        folderName && h('button', {
+      h('div', { class: 'app-menu-context folder-tabs', role: 'tablist', 'aria-label': 'Open folders' },
+        folderTabs.map((folder) => {
+          const isActive = folder.id === activeFolderId;
+          return h('div', {
+            key: folder.id,
+            class: 'app-folder-tab' + (isActive ? ' is-active' : ''),
+          },
+            h('button', {
+              type: 'button',
+              class: 'app-folder-context' + (isActive && explorerOpen ? ' is-open' : ' is-closed'),
+              title: folder.path || folder.name,
+              'aria-label': 'Open folder: ' + folder.name,
+              'aria-selected': String(isActive),
+              role: 'tab',
+              onClick: () => onSelectFolder && onSelectFolder(folder.id),
+            },
+              h('span', { class: 'app-folder-context-icon', 'aria-hidden': 'true' }, h(FolderIcon)),
+              h('span', { class: 'app-folder-context-name' }, folder.name),
+            ),
+            h('button', {
+              type: 'button',
+              class: 'app-folder-context-close',
+              'aria-label': 'Close folder ' + folder.name,
+              title: 'Close folder',
+              onClick: (e) => {
+                e.stopPropagation();
+                onCloseFolder && onCloseFolder(folder.id);
+              },
+            }, h(CloseIcon)),
+          );
+        }),
+        h('button', {
           type: 'button',
-          class: 'app-folder-context' + (explorerOpen ? ' is-open' : ' is-closed'),
-          title: folderName,
-          'aria-label': 'Opened folder: ' + folderName,
-          'aria-pressed': String(!!explorerOpen),
-          onClick: () => onMenuAction && onMenuAction('toggle-explorer'),
-        },
-          h('span', { class: 'app-folder-context-icon', 'aria-hidden': 'true' }, h(FolderIcon)),
-          h('span', { class: 'app-folder-context-name' }, folderName),
-        ),
+          class: 'app-folder-new',
+          'aria-label': 'Open another folder',
+          title: 'Open another folder',
+          onClick: () => onMenuAction && onMenuAction('open-folder'),
+        }, h(PlusIcon)),
       ),
       h('div', { class: 'app-menu-spacer' }),
       h('button', {

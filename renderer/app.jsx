@@ -315,7 +315,8 @@ function App() {
   const [viewMode, setViewMode] = useState('split');
   const [editorFormat, setEditorFormat] = useState('markdown');
   const [outlineOpen, setOutlineOpen] = useState(false);
-  const [folderRoot, setFolderRoot] = useState(null);
+  const [folderTabs, setFolderTabs] = useState([]);
+  const [activeFolderId, setActiveFolderId] = useState(null);
   const [expandedFolders, setExpandedFolders] = useState(() => new Set());
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [folderLoading, setFolderLoading] = useState(false);
@@ -354,6 +355,8 @@ function App() {
   stateRef.current = { tabs, activeId };
 
   const active = tabs.find((t) => t.id === activeId) || null;
+  const activeFolder = folderTabs.find((folder) => folder.id === activeFolderId) || null;
+  const folderRoot = activeFolder ? activeFolder.root : null;
 
   function cycleViewMode() {
     setViewMode((cur) => {
@@ -421,6 +424,13 @@ function App() {
       window.feathermark.setSettings('workspaceExpanded', [...next]);
       return next;
     });
+  }
+
+  function persistFolderTabs(nextFolders, nextActiveId = activeFolderId) {
+    const paths = nextFolders.map((folder) => folder.path);
+    const activeFolderPath = nextFolders.find((folder) => folder.id === nextActiveId)?.path || null;
+    window.feathermark.setSettings('workspaceFolders', paths);
+    window.feathermark.setSettings('workspaceFolder', activeFolderPath);
   }
 
   function toggleToolbar() {
@@ -616,12 +626,25 @@ function App() {
 
     const nextExpanded = new Set(Array.isArray(restoreExpanded) ? restoreExpanded : []);
     nextExpanded.add(result.root.path);
-    setFolderRoot(result.root);
+    const folder = {
+      id: normalizePath(result.root.path),
+      path: result.root.path,
+      name: result.root.name,
+      root: result.root,
+    };
+    setFolderTabs((current) => {
+      const index = current.findIndex((item) => item.id === folder.id);
+      const next = index >= 0
+        ? current.map((item, itemIndex) => itemIndex === index ? folder : item)
+        : [...current, folder];
+      if (persist) persistFolderTabs(next, folder.id);
+      return next;
+    });
+    setActiveFolderId(folder.id);
     setExpandedFolders(nextExpanded);
     setExplorerOpen(open);
     setFolderError(null);
     if (persist) {
-      window.feathermark.setSettings('workspaceFolder', result.root.path);
       window.feathermark.setSettings('workspaceExpanded', [...nextExpanded]);
       window.feathermark.setSettings('explorerOpen', open);
     }
@@ -631,6 +654,28 @@ function App() {
   async function openFolderDialog() {
     const folderPath = await window.feathermark.openFolderDialog();
     if (folderPath) await loadFolder(folderPath);
+  }
+
+  function selectFolder(folderId) {
+    if (!folderTabs.some((folder) => folder.id === folderId)) return;
+    setActiveFolderId(folderId);
+    setExplorerOpen(true);
+    persistFolderTabs(folderTabs, folderId);
+    window.feathermark.setSettings('explorerOpen', true);
+  }
+
+  function closeFolder(folderId) {
+    const index = folderTabs.findIndex((folder) => folder.id === folderId);
+    if (index < 0) return;
+    const next = folderTabs.filter((folder) => folder.id !== folderId);
+    const nextActiveId = folderId === activeFolderId
+      ? (next[Math.max(0, index - 1)]?.id || next[0]?.id || null)
+      : activeFolderId;
+    setFolderTabs(next);
+    setActiveFolderId(nextActiveId);
+    setExplorerOpen(next.length > 0 ? explorerOpen : false);
+    persistFolderTabs(next, nextActiveId);
+    if (next.length === 0) window.feathermark.setSettings('explorerOpen', false);
   }
 
   async function openPath(pathToOpen) {
@@ -1043,13 +1088,32 @@ function App() {
       window.feathermark.getSettings('explorerOpen', false).then((v) => {
         if (!cancelled) setExplorerOpen(!!v);
       }),
-      window.feathermark.getSettings('workspaceFolder', null).then(async (folderPath) => {
-        if (cancelled || !folderPath) return;
+      window.feathermark.getSettings('workspaceFolders', null).then(async (savedFolders) => {
+        const legacyFolder = await window.feathermark.getSettings('workspaceFolder', null);
+        const storedFolders = Array.isArray(savedFolders)
+          ? savedFolders.filter((folderPath) => typeof folderPath === 'string' && folderPath.length > 0)
+          : [];
+        const folderPaths = storedFolders.length > 0
+          ? [...new Set(storedFolders)]
+          : (typeof legacyFolder === 'string' && legacyFolder.length > 0 ? [legacyFolder] : []);
+        if (cancelled || folderPaths.length === 0) return;
         const [expanded, open] = await Promise.all([
           window.feathermark.getSettings('workspaceExpanded', []),
           window.feathermark.getSettings('explorerOpen', true),
         ]);
-        if (!cancelled) await loadFolder(folderPath, { restoreExpanded: expanded, persist: false, open: !!open });
+        if (cancelled) return;
+        for (const folderPath of folderPaths) {
+          if (cancelled) return;
+          await loadFolder(folderPath, { restoreExpanded: expanded, persist: false, open: false });
+        }
+        if (!cancelled) {
+          const preferredId = legacyFolder && normalizePath(legacyFolder);
+          const restoredId = folderPaths.map(normalizePath).includes(preferredId)
+            ? preferredId
+            : normalizePath(folderPaths[0]);
+          setActiveFolderId(restoredId);
+          setExplorerOpen(!!open);
+        }
       }),
       refreshRecents(),
       restoreSession(),
@@ -1223,7 +1287,10 @@ function App() {
         findOpen,
         toolbarOpen,
         explorerOpen,
-        folderName: folderRoot ? folderRoot.name : null,
+        folderTabs,
+        activeFolderId,
+        onSelectFolder: selectFolder,
+        onCloseFolder: closeFolder,
       }),
       h(TabBar, { tabs, activeId, onSelect: focusTab, onClose: closeTab, onNew: promptNewTabAction, onReorder: reorderTabs }),
       tabs.length > 0 && h(Toolbar, {

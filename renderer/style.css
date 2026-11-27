@@ -307,9 +307,34 @@ button:disabled {
   gap: var(--space-2);
 }
 
+.folder-tabs {
+  max-width: min(52vw, 44rem);
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.folder-tabs::-webkit-scrollbar { display: none; }
+
+.app-folder-tab {
+  min-width: 0;
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  background: var(--sidebar-bg);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.app-folder-tab.is-active {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+}
+
 .app-folder-context {
   min-width: 0;
-  max-width: clamp(10rem, 24vw, 22rem);
+  max-width: clamp(8rem, 16vw, 15rem);
   padding: 4px 6px;
   display: inline-flex;
   align-items: center;
@@ -323,6 +348,39 @@ button:disabled {
 
 .app-folder-context:hover { background: var(--surface-hover); color: var(--text-primary); }
 .app-folder-context:active { background: var(--surface-active); }
+
+.app-folder-tab.is-active .app-folder-context { color: var(--text-primary); }
+
+.app-folder-context-close,
+.app-folder-new {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-control);
+  color: var(--text-muted);
+  transition: background var(--transition-fast), color var(--transition-fast), transform 80ms ease;
+}
+
+.app-folder-context-close { margin-right: 2px; }
+
+.app-folder-context-close:hover,
+.app-folder-new:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.app-folder-context-close:active,
+.app-folder-new:active { transform: scale(0.94); }
+
+.app-folder-new {
+  margin-left: 2px;
+  background: var(--surface-hover);
+}
+
+.app-folder-context-close svg,
+.app-folder-new svg { display: block; }
 
 .app-folder-context-icon {
   display: inline-flex;
@@ -576,7 +634,8 @@ button:disabled {
   .app-menu-bar { padding-right: var(--space-2); }
   .menu-segment-label { display: none; }
   .menu-segment { padding: 4px 8px; }
-  .app-folder-context { max-width: 9rem; }
+  .folder-tabs { max-width: 42vw; }
+  .app-folder-context { max-width: 8rem; }
 }
 
 /* Wider narrow-window collapse: hide even theme segment labels + tighten gaps */
@@ -585,6 +644,7 @@ button:disabled {
   .chrome-icon-btn { width: 28px; height: 28px; }
   .find-toggle-chrome-btn { width: 28px; height: 28px; }
   .app-menu-context { gap: 4px; }
+  .folder-tabs { max-width: 45vw; }
   .app-folder-context { max-width: 7.5rem; gap: 4px; }
 }
 

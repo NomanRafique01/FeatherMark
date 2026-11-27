@@ -141,6 +141,7 @@ module.exports = {
       toolbarOpen: false,
       focusMode: false,
       workspaceFolder: null,
+      workspaceFolders: [],
       workspaceExpanded: [],
       splitRatio: 0.5,
       windowMaximized: true,
