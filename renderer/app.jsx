@@ -42,7 +42,7 @@ function samePath(a, b) {
 
 function makeTab(path, text) {
   return { id: newTabId(), path: path || null, name: path ? basename(path) : 'Untitled',
-    text, dirty: false, cursor: 0, scroll: 0, previewScroll: 0 };
+    text, dirty: false, missing: false, cursor: 0, scroll: 0, previewScroll: 0 };
 }
 
 // ---- Recents (empty state) ----
@@ -339,6 +339,7 @@ function App() {
 
   const [recents, setRecents] = useState([]);
   const [notice, setNotice] = useState(null); // recovery/error banner, dismissible
+  const [externalConflicts, setExternalConflicts] = useState({});
   const [savedBeat, setSavedBeat] = useState(false); // status surface --success for a beat
   const [loading, setLoading] = useState(false);
   const [dropping, setDropping] = useState(false);
@@ -353,6 +354,10 @@ function App() {
   editorFormatRef.current = editorFormat;
   const stateRef = useRef({ tabs: [], activeId: null });
   stateRef.current = { tabs, activeId };
+  const folderTabsRef = useRef(folderTabs);
+  const activeFolderIdRef = useRef(activeFolderId);
+  folderTabsRef.current = folderTabs;
+  activeFolderIdRef.current = activeFolderId;
 
   const active = tabs.find((t) => t.id === activeId) || null;
   const activeFolder = folderTabs.find((folder) => folder.id === activeFolderId) || null;
@@ -644,6 +649,7 @@ function App() {
     setExpandedFolders(nextExpanded);
     setExplorerOpen(open);
     setFolderError(null);
+    await window.feathermark.watchFolder(folder.path);
     if (persist) {
       window.feathermark.setSettings('workspaceExpanded', [...nextExpanded]);
       window.feathermark.setSettings('explorerOpen', open);
@@ -667,6 +673,7 @@ function App() {
   function closeFolder(folderId) {
     const index = folderTabs.findIndex((folder) => folder.id === folderId);
     if (index < 0) return;
+    window.feathermark.unwatchFolder(folderTabs[index].path);
     const next = folderTabs.filter((folder) => folder.id !== folderId);
     const nextActiveId = folderId === activeFolderId
       ? (next[Math.max(0, index - 1)]?.id || next[0]?.id || null)
@@ -676,6 +683,21 @@ function App() {
     setExplorerOpen(next.length > 0 ? explorerOpen : false);
     persistFolderTabs(next, nextActiveId);
     if (next.length === 0) window.feathermark.setSettings('explorerOpen', false);
+  }
+
+  async function refreshFolderTree(folderPath) {
+    const folderId = normalizePath(folderPath);
+    if (!folderTabsRef.current.some((folder) => folder.id === folderId)) return;
+    const result = await window.feathermark.readFolderTree(folderPath);
+    if (!result.ok) {
+      if (activeFolderIdRef.current === folderId) setFolderError(result.error);
+      return;
+    }
+
+    setFolderTabs((current) => current.map((folder) => folder.id === folderId
+      ? { ...folder, name: result.root.name, root: result.root }
+      : folder));
+    if (activeFolderIdRef.current === folderId) setFolderError(null);
   }
 
   async function openPath(pathToOpen) {
@@ -700,6 +722,77 @@ function App() {
     await addTab(makeTab(pathToOpen, result.content));
     recordLocalRecent(pathToOpen);
     refreshRecents();
+  }
+
+  function applyExternalContent(tabId, content) {
+    setTabs((ts) => ts.map((t) => (t.id === tabId
+      ? { ...t, text: content, dirty: false, missing: false }
+      : t)));
+    setExternalConflicts((current) => {
+      if (!current[tabId]) return current;
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    window.feathermark.tabDirty(tabId, false);
+  }
+
+  function handleExternalFileChange(event) {
+    if (!event || !event.path) return;
+    const tab = stateRef.current.tabs.find((item) => samePath(item.path, event.path));
+    if (!tab) return;
+
+    if (event.kind === 'error') {
+      setNotice({ tone: 'warning', text: event.error || `Could not read “${tab.name}” after it changed.` });
+      return;
+    }
+
+    if (event.kind === 'remove') {
+      setTabs((ts) => ts.map((item) => (item.id === tab.id ? { ...item, missing: true } : item)));
+      setExternalConflicts((current) => ({
+        ...current,
+        [tab.id]: { tabId: tab.id, name: tab.name, path: tab.path, missing: true },
+      }));
+      return;
+    }
+
+    if (event.kind !== 'change' || typeof event.content !== 'string') return;
+    if (event.content === tab.text) {
+      setTabs((ts) => ts.map((item) => (item.id === tab.id ? { ...item, missing: false } : item)));
+      return;
+    }
+
+    if (tab.dirty) {
+      setExternalConflicts((current) => ({
+        ...current,
+        [tab.id]: { tabId: tab.id, name: tab.name, path: tab.path, content: event.content },
+      }));
+      return;
+    }
+
+    applyExternalContent(tab.id, event.content);
+  }
+
+  function keepExternalChanges(tabId) {
+    setExternalConflicts((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+  }
+
+  function reloadExternalChanges(tabId) {
+    const conflict = externalConflicts[tabId];
+    if (!conflict) return;
+    if (conflict.missing) {
+      setExternalConflicts((current) => {
+        const next = { ...current };
+        delete next[tabId];
+        return next;
+      });
+      return;
+    }
+    applyExternalContent(tabId, conflict.content);
   }
 
   async function newFile() {
@@ -736,8 +829,14 @@ function App() {
     if (result.ok) {
       markDirty(tabId, false);
       setTabs((ts) => ts.map((t) => (t.id === tabId
-        ? { ...t, dirty: false, path: result.path || t.path, name: result.path ? basename(result.path) : t.name }
+        ? { ...t, dirty: false, missing: false, path: result.path || t.path, name: result.path ? basename(result.path) : t.name }
         : t)));
+      setExternalConflicts((current) => {
+        if (!current[tabId]) return current;
+        const next = { ...current };
+        delete next[tabId];
+        return next;
+      });
       setSavedBeat(true);
       setTimeout(() => setSavedBeat(false), 1200);
       if (result.path) recordLocalRecent(result.path);
@@ -811,6 +910,12 @@ function App() {
       if (rest.length === 0) setActiveId(null);
       else if (stateRef.current.activeId === tabId) focusTab(rest[Math.max(0, idx - 1)].id);
       return rest;
+    });
+    setExternalConflicts((current) => {
+      if (!current[tabId]) return current;
+      const next = { ...current };
+      delete next[tabId];
+      return next;
     });
     await window.feathermark.tabClosed(tabId);
   }
@@ -1035,6 +1140,8 @@ function App() {
     window.feathermark.setSettings('splitRatio', 0.5);
 
     off.push(window.feathermark.onDropOpen((p) => openPath(p)));
+    off.push(window.feathermark.onFileChanged((event) => handleExternalFileChange(event)));
+    off.push(window.feathermark.onFolderChanged(({ root }) => refreshFolderTree(root)));
     off.push(window.feathermark.onSnapshotRequest(() => takeSnapshot()));
     off.push(window.feathermark.onSaveAllRequest((tabIds) => saveAll(tabIds)));
     off.push(window.feathermark.onConfirmTabsExitRequest(async ({ count }) => {
@@ -1275,6 +1382,8 @@ function App() {
 
   // ---- render ----
 
+  const firstExternalConflict = Object.values(externalConflicts)[0] || null;
+
   return h('div', { class: 'shell' + (dropping ? ' is-dropping' : '') + (focusMode ? ' is-focus' : '') },
     h(AppHeader, { onWindowAction: handleWindowAction }),
     h('div', { class: 'workspace' },
@@ -1305,6 +1414,23 @@ function App() {
             width: '12', height: '12', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
             'stroke-width': '1.5', 'stroke-linecap': 'round', 'aria-hidden': 'true',
           }, h('path', { d: 'M4.5 4.5l7 7M11.5 4.5l-7 7' }))),
+      ),
+      firstExternalConflict && h('div', { class: 'notice notice-warning live-conflict', role: 'alert' },
+        h('span', null, firstExternalConflict.missing
+          ? '“' + firstExternalConflict.name + '” was removed or moved outside FeatherMark.'
+          : '“' + firstExternalConflict.name + '” changed outside FeatherMark.'),
+        h('div', { class: 'notice-actions' },
+          !firstExternalConflict.missing && h('button', {
+            type: 'button',
+            class: 'notice-action is-primary',
+            onClick: () => reloadExternalChanges(firstExternalConflict.tabId),
+          }, 'Reload from disk'),
+          h('button', {
+            type: 'button',
+            class: 'notice-action',
+            onClick: () => keepExternalChanges(firstExternalConflict.tabId),
+          }, firstExternalConflict.missing ? 'Keep tab' : 'Keep my changes'),
+        ),
       ),
       loading && h('div', { class: 'loading', role: 'status' }, 'Opening file…'),
       tabs.length === 0 && !folderRoot

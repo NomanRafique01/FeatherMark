@@ -66,11 +66,11 @@ export function TabBar({ tabs, activeId, onSelect, onClose, onNew, onReorder }) 
       const isTarget = dropTargetId === tab.id && draggingId !== tab.id;
       return h('div', {
         key: tab.id,
-        class: 'tab' + (isActive ? ' is-active' : '') + (isTarget ? ' is-drop-target' : ''),
+        class: 'tab' + (isActive ? ' is-active' : '') + (isTarget ? ' is-drop-target' : '') + (tab.missing ? ' is-missing' : ''),
         role: 'tab',
         'aria-selected': isActive,
         tabIndex: isActive ? 0 : -1,
-        title: tab.path || 'Not saved yet',
+        title: tab.missing ? 'File is missing on disk' : tab.path || 'Not saved yet',
         draggable: true,
         onClick: () => onSelect(tab.id),
         onKeyDown: (e) => handleKeyDown(e, tab.id, idx),

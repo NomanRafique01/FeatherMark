@@ -17,6 +17,8 @@
 //   openFileDialog()                  -> Promise<string|null>  feathermark:open-file-dialog
 //   openFolderDialog()                -> Promise<string|null>  feathermark:open-folder-dialog
 //   readFolderTree(path)              -> Promise<{ok, root?} | {ok:false, error}> feathermark:read-folder-tree
+//   watchFolder(path)                 -> Promise<boolean>      feathermark:watch-folder
+//   unwatchFolder(path)               -> Promise<boolean>      feathermark:unwatch-folder
 //   open(path)                        -> Promise<{ok, content?} | {ok:false, error}>   feathermark:open
 //   save(tabId, text)                 -> Promise<{ok, path?} | {ok:false, error}>      feathermark:save
 //   saveAs(tabId, text)               -> same, or {ok:false, canceled:true}            feathermark:save-as
@@ -30,6 +32,8 @@
 //   forgetRecent(path)                -> Promise<string[]>     feathermark:forget-recent
 //   confirmCloseTab(name)             -> Promise<0|1|2>        feathermark:confirm-close-tab (0 save+close, 1 discard, 2 cancel)
 //   onDropOpen(cb)                    -> unsubscribe fn        ipc event feathermark:drop-open (path)
+//   onFileChanged(cb)                 -> unsubscribe fn        ipc event feathermark:file-changed ({path, kind, content?})
+//   onFolderChanged(cb)               -> unsubscribe fn        ipc event feathermark:folder-changed ({root})
 //   onDirtyChanged(cb)                -> unsubscribe fn        ipc event feathermark:dirty-changed (boolean)
 //   onRecoveryNotice(cb)              -> unsubscribe fn        ipc event feathermark:recovery-notice ({backupPath})
 //   onSnapshotRequest(cb)             -> unsubscribe fn        ipc event feathermark:snapshot-request
@@ -58,6 +62,8 @@ contextBridge.exposeInMainWorld('feathermark', {
   openFileDialog: () => ipcRenderer.invoke('feathermark:open-file-dialog'),
   openFolderDialog: () => ipcRenderer.invoke('feathermark:open-folder-dialog'),
   readFolderTree: (folderPath) => ipcRenderer.invoke('feathermark:read-folder-tree', folderPath),
+  watchFolder: (folderPath) => ipcRenderer.invoke('feathermark:watch-folder', folderPath),
+  unwatchFolder: (folderPath) => ipcRenderer.invoke('feathermark:unwatch-folder', folderPath),
   open: (filePath) => ipcRenderer.invoke('feathermark:open', filePath),
   save: (tabId, text) => ipcRenderer.invoke('feathermark:save', tabId, text),
   saveAs: (tabId, text) => ipcRenderer.invoke('feathermark:save-as', tabId, text),
@@ -83,6 +89,8 @@ contextBridge.exposeInMainWorld('feathermark', {
   onThemeChanged: (cb) => relay('feathermark:theme-changed', cb),
   onMenu: (cb) => relay('feathermark:menu', cb),
   onDropOpen: (cb) => relay('feathermark:drop-open', cb),
+  onFileChanged: (cb) => relay('feathermark:file-changed', cb),
+  onFolderChanged: (cb) => relay('feathermark:folder-changed', cb),
   onDirtyChanged: (cb) => relay('feathermark:dirty-changed', cb),
   onRecoveryNotice: (cb) => relay('feathermark:recovery-notice', cb),
   onSnapshotRequest: (cb) => relay('feathermark:snapshot-request', cb),

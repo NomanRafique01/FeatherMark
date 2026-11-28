@@ -697,6 +697,7 @@ button:disabled {
 }
 
 .tab:hover:not(.is-active) { background: var(--surface-hover); }
+.tab.is-missing .tab-name { color: var(--danger); }
 
 .tab-file-icon {
   width: 12px;
@@ -819,6 +820,27 @@ button:disabled {
 }
 
 .notice-close:hover { background: var(--surface-hover); color: var(--text-primary); }
+
+.notice-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.notice-action {
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  color: var(--text-secondary);
+  background: var(--editor-bg);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.notice-action:hover { background: var(--surface-hover); color: var(--text-primary); }
+.notice-action.is-primary { color: var(--text-primary); border-color: var(--accent); }
 
 /* ---- Loading: honest, quiet status; no fake/indeterminate animation ---- */
 

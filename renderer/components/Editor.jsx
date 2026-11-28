@@ -254,6 +254,7 @@ function CodeEditor({
   const viewRef = useRef(null);
   const currentTabIdRef = useRef(tabId);
   const isExternalScrollRef = useRef(false);
+  const isExternalUpdateRef = useRef(false);
   const externalScrollTimerRef = useRef(null);
   const editorSyncRafRef = useRef(null);
   const languageCompartmentRef = useRef(new Compartment());
@@ -423,7 +424,7 @@ function CodeEditor({
     ];
 
     const updateListener = EditorView.updateListener.of((update) => {
-      if (update.docChanged && callbacksRef.current.onChange) {
+      if (update.docChanged && !isExternalUpdateRef.current && callbacksRef.current.onChange) {
         const doc = update.state.doc.toString();
         callbacksRef.current.onChange(doc);
       }
@@ -564,6 +565,28 @@ function CodeEditor({
       });
     }
   }, [tabId, initialText, initialCursor, initialScroll]);
+
+  // External filesystem changes update the same open tab without going through
+  // the local dirty-state pipeline. Keep the current selection when possible.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || currentTabIdRef.current !== tabId) return;
+    const currentDoc = view.state.doc.toString();
+    if (currentDoc === initialText) return;
+
+    const main = view.state.selection.main;
+    const nextLength = initialText.length;
+    isExternalUpdateRef.current = true;
+    view.dispatch({
+      changes: { from: 0, to: currentDoc.length, insert: initialText },
+      selection: {
+        anchor: Math.min(main.anchor, nextLength),
+        head: Math.min(main.head, nextLength),
+      },
+      scrollIntoView: false,
+    });
+    isExternalUpdateRef.current = false;
+  }, [initialText, tabId]);
 
   // Click anywhere in the pane → place cursor at nearest doc position and focus
   function handlePaneMouseDown(e) {

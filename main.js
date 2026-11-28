@@ -4,6 +4,7 @@
 const { app, BrowserWindow, Menu, dialog, nativeTheme, ipcMain, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const fsp = fs.promises;
 const settings = require('./store/settings');
 
@@ -17,7 +18,7 @@ app.setAppUserModelId('com.feathermark.app');
 settings.configure(appUserData);
 
 const MARKDOWN_FILE_RE = /\.(md|markdown|mdown|mkdn|mkd|mdwn)$/i;
-const EXPLORER_MARKDOWN_FILE_RE = /\.(md|markdown)$/i;
+const EXPLORER_TEXT_FILE_RE = /\.(md|markdown|txt)$/i;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 let pendingExternalFile = findMarkdownArgument(process.argv);
 let rendererReady = false;
@@ -85,7 +86,7 @@ async function readFolderNode(directoryPath) {
       // Directory symlinks are intentionally not followed. This keeps the
       // tree finite and prevents linked directories from creating cycles.
       children.push(await readFolderNode(entryPath));
-    } else if (entry.isFile() && EXPLORER_MARKDOWN_FILE_RE.test(entry.name)) {
+    } else if (entry.isFile() && EXPLORER_TEXT_FILE_RE.test(entry.name)) {
       children.push({ type: 'file', name: entry.name, path: entryPath });
     }
   }
@@ -118,6 +119,259 @@ async function readFolderTree(folderPath) {
   } catch (err) {
     return { ok: false, error: 'The folder could not be scanned (' + (err.code || 'unknown error') + ').' };
   }
+}
+
+// ---- Lightweight live filesystem watching ---------------------------------
+//
+// Watchers are deliberately scoped to files opened in tabs and folders opened
+// in the workspace. fs.watch is event-driven (no polling and no render loop),
+// and each directory is watched once even when it has several subscribers.
+const fileDirectoryWatchers = new Map(); // directory key -> { path, watcher, files:Set<file key> }
+const watchedFiles = new Map();          // file key -> Set<tab id>
+const watchedFileByTab = new Map();       // tab id -> file key
+const fileWatchState = new Map();         // file key -> { path, fingerprint, exists, timer, reading, again }
+const folderWatchSessions = new Map();    // folder key -> { root, watchers:Map<dir key, record>, timer }
+
+function watchPathKey(value) {
+  const resolved = path.resolve(value);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function contentFingerprint(text) {
+  return crypto.createHash('sha1').update(text, 'utf8').digest('hex');
+}
+
+function waitMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function readStableMarkdownFile(filePath) {
+  // Editors and agents sometimes write in place. Wait until the size and
+  // mtime agree before reading, while keeping the retry window tiny.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    let before;
+    try {
+      before = await fsp.stat(filePath);
+    } catch (_) {
+      return readMarkdownFile(filePath);
+    }
+
+    const result = await readMarkdownFile(filePath);
+    if (!result.ok) return result;
+
+    let after;
+    try {
+      after = await fsp.stat(filePath);
+    } catch (_) {
+      return result;
+    }
+    if (before.size === after.size && before.mtimeMs === after.mtimeMs) return result;
+    await waitMs(25 * (attempt + 1));
+  }
+  return readMarkdownFile(filePath);
+}
+
+function emitFileChange(filePath, payload) {
+  sendToRenderer('feathermark:file-changed', { path: filePath, ...payload });
+}
+
+async function flushFileChange(fileKey) {
+  const state = fileWatchState.get(fileKey);
+  if (!state || state.reading) {
+    if (state) state.again = true;
+    return;
+  }
+
+  state.reading = true;
+  try {
+    const result = await readStableMarkdownFile(state.path);
+    if (result.ok) {
+      const fingerprint = contentFingerprint(result.content);
+      const changed = state.exists === false || state.fingerprint !== fingerprint;
+      state.exists = true;
+      state.fingerprint = fingerprint;
+      if (changed) emitFileChange(state.path, { kind: 'change', content: result.content, fingerprint });
+    } else if (/no longer where|not a file/i.test(result.error || '')) {
+      if (state.exists !== false) emitFileChange(state.path, { kind: 'remove' });
+      state.exists = false;
+      state.fingerprint = null;
+    } else {
+      emitFileChange(state.path, { kind: 'error', error: result.error });
+    }
+  } finally {
+    state.reading = false;
+    if (state.again) {
+      state.again = false;
+      queueFileChange(state.path);
+    }
+  }
+}
+
+function queueFileChange(filePath) {
+  const fileKey = watchPathKey(filePath);
+  const state = fileWatchState.get(fileKey);
+  if (!state) return;
+  clearTimeout(state.timer);
+  state.timer = setTimeout(() => {
+    state.timer = null;
+    flushFileChange(fileKey);
+  }, 120);
+}
+
+function ensureFileDirectoryWatcher(directoryPath) {
+  const directoryKey = watchPathKey(directoryPath);
+  const existing = fileDirectoryWatchers.get(directoryKey);
+  if (existing) return existing;
+
+  let watcher;
+  try {
+    watcher = fs.watch(directoryPath, { persistent: false }, (_eventType, filename) => {
+      const record = fileDirectoryWatchers.get(directoryKey);
+      if (!record) return;
+      const name = filename ? String(filename) : null;
+      for (const fileKey of record.files) {
+        const state = fileWatchState.get(fileKey);
+        if (!state) continue;
+        if (!name || watchPathKey(path.join(directoryPath, name)) === fileKey) queueFileChange(state.path);
+      }
+    });
+    watcher.on('error', () => {
+      const record = fileDirectoryWatchers.get(directoryKey);
+      if (record && record.watcher === watcher) fileDirectoryWatchers.delete(directoryKey);
+    });
+  } catch (_) {
+    return null;
+  }
+
+  const record = { path: directoryPath, watcher, files: new Set() };
+  fileDirectoryWatchers.set(directoryKey, record);
+  return record;
+}
+
+function watchFileForTab(tabId, filePath) {
+  unwatchFileForTab(tabId);
+  if (!filePath) return;
+
+  const resolved = path.resolve(filePath);
+  const fileKey = watchPathKey(resolved);
+  const directoryRecord = ensureFileDirectoryWatcher(path.dirname(resolved));
+  if (!directoryRecord) return;
+  directoryRecord.files.add(fileKey);
+
+  if (!watchedFiles.has(fileKey)) watchedFiles.set(fileKey, new Set());
+  watchedFiles.get(fileKey).add(tabId);
+  watchedFileByTab.set(tabId, fileKey);
+  if (!fileWatchState.has(fileKey)) {
+    fileWatchState.set(fileKey, { path: resolved, fingerprint: null, exists: true, timer: null, reading: false, again: false });
+  }
+}
+
+function unwatchFileForTab(tabId) {
+  const fileKey = watchedFileByTab.get(tabId);
+  if (!fileKey) return;
+  watchedFileByTab.delete(tabId);
+  const subscribers = watchedFiles.get(fileKey);
+  if (subscribers) {
+    subscribers.delete(tabId);
+    if (subscribers.size > 0) return;
+    watchedFiles.delete(fileKey);
+  }
+
+  const state = fileWatchState.get(fileKey);
+  if (state) clearTimeout(state.timer);
+  fileWatchState.delete(fileKey);
+
+  for (const [directoryKey, record] of fileDirectoryWatchers) {
+    record.files.delete(fileKey);
+    if (record.files.size === 0) {
+      record.watcher.close();
+      fileDirectoryWatchers.delete(directoryKey);
+    }
+  }
+}
+
+function primeFileFingerprint(filePath, text) {
+  const state = fileWatchState.get(watchPathKey(filePath));
+  if (!state || typeof text !== 'string') return;
+  state.fingerprint = contentFingerprint(text);
+  state.exists = true;
+}
+
+async function collectDirectoryPaths(rootPath) {
+  const directories = [];
+  async function visit(directoryPath) {
+    directories.push(directoryPath);
+    let entries;
+    try {
+      entries = await fsp.readdir(directoryPath, { withFileTypes: true });
+    } catch (_) {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory()) await visit(path.join(directoryPath, entry.name));
+    }
+  }
+  await visit(rootPath);
+  return directories;
+}
+
+async function syncFolderWatchSession(session) {
+  const directories = await collectDirectoryPaths(session.root);
+  const wanted = new Set(directories.map(watchPathKey));
+
+  for (const directoryPath of directories) {
+    const directoryKey = watchPathKey(directoryPath);
+    if (session.watchers.has(directoryKey)) continue;
+    try {
+      const watcher = fs.watch(directoryPath, { persistent: false }, () => queueFolderChange(session.root));
+      watcher.on('error', () => {
+        const record = session.watchers.get(directoryKey);
+        if (record && record.watcher === watcher) session.watchers.delete(directoryKey);
+        queueFolderChange(session.root);
+      });
+      session.watchers.set(directoryKey, { path: directoryPath, watcher });
+    } catch (_) {
+      // The next folder event or explicit refresh will retry inaccessible paths.
+    }
+  }
+
+  for (const [directoryKey, record] of session.watchers) {
+    if (!wanted.has(directoryKey)) {
+      record.watcher.close();
+      session.watchers.delete(directoryKey);
+    }
+  }
+}
+
+function queueFolderChange(folderPath) {
+  const session = folderWatchSessions.get(watchPathKey(folderPath));
+  if (!session) return;
+  clearTimeout(session.timer);
+  session.timer = setTimeout(async () => {
+    session.timer = null;
+    await syncFolderWatchSession(session);
+    sendToRenderer('feathermark:folder-changed', { root: session.root });
+  }, 160);
+}
+
+async function watchFolder(folderPath) {
+  const root = path.resolve(folderPath);
+  const key = watchPathKey(root);
+  if (folderWatchSessions.has(key)) return true;
+  const session = { root, watchers: new Map(), timer: null };
+  folderWatchSessions.set(key, session);
+  await syncFolderWatchSession(session);
+  return true;
+}
+
+function unwatchFolder(folderPath) {
+  const key = watchPathKey(folderPath);
+  const session = folderWatchSessions.get(key);
+  if (!session) return false;
+  clearTimeout(session.timer);
+  for (const record of session.watchers.values()) record.watcher.close();
+  folderWatchSessions.delete(key);
+  return true;
 }
 
 function bringToFront() {
@@ -428,6 +682,8 @@ const fileHandlers = {
       tab.dirty = false;
       if (previous !== filePath) settings.removeRecent(previous);
       settings.addRecent(filePath);
+      watchFileForTab(tabId, filePath);
+      primeFileFingerprint(filePath, text);
       tabEvents.requestSnapshot();
       refreshDirtyFlag();
       updateSaveMenuItems();
@@ -438,6 +694,7 @@ const fileHandlers = {
   tabOpened(tabId, filePath) {
     tabs.set(tabId, { path: filePath || null, dirty: false });
     if (filePath) settings.addRecent(filePath);
+    watchFileForTab(tabId, filePath);
     activeTabId = tabId;
     tabEvents.requestSnapshot();
     refreshDirtyFlag();
@@ -446,6 +703,7 @@ const fileHandlers = {
   },
 
   tabClosed(tabId) {
+    unwatchFileForTab(tabId);
     tabs.delete(tabId);
     if (activeTabId === tabId) activeTabId = tabs.keys().next().value ?? null;
     tabEvents.requestSnapshot();
@@ -530,6 +788,8 @@ ipcMain.handle('feathermark:open-folder-dialog', async () => {
 });
 
 ipcMain.handle('feathermark:read-folder-tree', (_event, folderPath) => readFolderTree(folderPath));
+ipcMain.handle('feathermark:watch-folder', (_event, folderPath) => watchFolder(folderPath));
+ipcMain.handle('feathermark:unwatch-folder', (_event, folderPath) => unwatchFolder(folderPath));
 
 // ---- Theme: OS changes + manual override both flow to renderer and window bg ----
 

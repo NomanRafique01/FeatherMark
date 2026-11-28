@@ -197,7 +197,7 @@ export function FolderExplorer({
             onOpenFile,
           }),
         ),
-        !rootHasChildren && h('p', { class: 'explorer-empty' }, 'No Markdown files or folders here.'),
+        !rootHasChildren && h('p', { class: 'explorer-empty' }, 'No Markdown or text files here.'),
       )
     )
   )
