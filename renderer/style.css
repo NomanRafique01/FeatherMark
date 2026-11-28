@@ -899,6 +899,7 @@ button:disabled {
 /* ---- Folder Explorer ---- */
 
 .folder-explorer {
+  position: relative;
   flex: 0 0 var(--explorer-collapsed-width);
   width: var(--explorer-collapsed-width);
   min-width: var(--explorer-collapsed-width);
@@ -917,6 +918,45 @@ button:disabled {
   width: var(--explorer-width);
   min-width: var(--explorer-width);
   max-width: var(--explorer-width);
+}
+
+.folder-explorer.is-resizing,
+.folder-explorer.is-resizing .explorer-inner {
+  transition: none;
+}
+
+.folder-explorer.is-resizing {
+  user-select: none;
+}
+
+.explorer-resize-handle {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  right: -1px;
+  bottom: 0;
+  width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.explorer-resize-handle::after {
+  content: '';
+  position: absolute;
+  inset: 0 3px;
+  background: transparent;
+  transition: background-color var(--transition-fast);
+}
+
+.explorer-resize-handle:hover::after,
+.explorer-resize-handle:focus-visible::after,
+.folder-explorer.is-resizing .explorer-resize-handle::after {
+  background: var(--accent);
+}
+
+.explorer-resize-handle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
 }
 
 .explorer-inner {
@@ -1689,13 +1729,13 @@ button:disabled {
   }
 
   .folder-explorer.is-open {
-    width: clamp(14rem, 70vw, 20rem);
-    min-width: clamp(14rem, 70vw, 20rem);
-    max-width: clamp(14rem, 70vw, 20rem);
+    width: var(--explorer-width);
+    min-width: var(--explorer-width);
+    max-width: var(--explorer-width);
   }
 
   .workspace-content.has-explorer.is-explorer-open > .outline-rail {
-    left: clamp(14rem, 70vw, 20rem);
+    left: var(--explorer-width);
   }
 
   .outline-rail {

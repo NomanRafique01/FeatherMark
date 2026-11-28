@@ -24,6 +24,7 @@ import { FolderExplorer } from './components/FolderExplorer.jsx';
 const THEME_PREFS = ['auto', 'light', 'dark'];
 const VIEW_MODES = ['split', 'preview-only', 'editor-only'];
 const SESSION_TEXT_CAP = 256 * 1024; // per dirty tab, keep session file sane
+const DEFAULT_EXPLORER_WIDTH = 288;
 
 let nextTabId = 1; // session-restored ids use 'r' prefix, never collide
 const newTabId = () => 't' + nextTabId++;
@@ -321,6 +322,7 @@ function App() {
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [folderLoading, setFolderLoading] = useState(false);
   const [folderError, setFolderError] = useState(null);
+  const [explorerWidth, setExplorerWidth] = useState(DEFAULT_EXPLORER_WIDTH);
   const [toolbarOpen, setToolbarOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
@@ -419,6 +421,12 @@ function App() {
       window.feathermark.setSettings('explorerOpen', next);
       return next;
     });
+  }
+
+  function setWorkspaceExplorerWidth(value, persist = false) {
+    const next = Math.max(216, Math.min(420, Math.round(Number(value) || DEFAULT_EXPLORER_WIDTH)));
+    setExplorerWidth(next);
+    if (persist) window.feathermark.setSettings('explorerWidth', next);
   }
 
   function toggleFolder(folderPath) {
@@ -1195,6 +1203,9 @@ function App() {
       window.feathermark.getSettings('explorerOpen', false).then((v) => {
         if (!cancelled) setExplorerOpen(!!v);
       }),
+      window.feathermark.getSettings('explorerWidth', DEFAULT_EXPLORER_WIDTH).then((v) => {
+        if (!cancelled && Number.isFinite(Number(v))) setWorkspaceExplorerWidth(v);
+      }),
       window.feathermark.getSettings('workspaceFolders', null).then(async (savedFolders) => {
         const legacyFolder = await window.feathermark.getSettings('workspaceFolder', null);
         const storedFolders = Array.isArray(savedFolders)
@@ -1444,7 +1455,10 @@ function App() {
             onClearMissing: clearMissingRecents,
             onClearAll: clearAllRecents,
           })
-        : h('div', { class: 'workspace-content' + (folderRoot ? ' has-explorer' : '') + (folderRoot && explorerOpen ? ' is-explorer-open' : '') },
+        : h('div', {
+          class: 'workspace-content' + (folderRoot ? ' has-explorer' : '') + (folderRoot && explorerOpen ? ' is-explorer-open' : ''),
+          style: folderRoot ? { '--explorer-width': `clamp(216px, ${explorerWidth}px, 86vw)` } : undefined,
+        },
         folderRoot && h(FolderExplorer, {
           root: folderRoot,
           isOpen: explorerOpen,
@@ -1455,6 +1469,10 @@ function App() {
           onToggleFolder: toggleFolder,
           onOpenFile: openPath,
           onClose: toggleExplorer,
+          width: explorerWidth,
+          onResize: (value) => setWorkspaceExplorerWidth(value),
+          onResizeEnd: (value) => setWorkspaceExplorerWidth(value, true),
+          onResetWidth: () => setWorkspaceExplorerWidth(DEFAULT_EXPLORER_WIDTH, true),
         }),
         active && h(Outline, {
           text: active.text,

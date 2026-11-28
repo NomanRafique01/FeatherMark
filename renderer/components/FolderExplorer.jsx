@@ -3,6 +3,23 @@
 // metadata returned through preload.js and routes Markdown clicks to the app.
 
 import { h } from 'preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
+
+const EXPLORER_MIN_WIDTH = 216;
+const EXPLORER_MAX_WIDTH = 420;
+
+function explorerWidthBounds() {
+  const viewport = typeof window === 'undefined' ? 1440 : window.innerWidth;
+  const max = viewport <= 860
+    ? Math.min(EXPLORER_MAX_WIDTH, Math.max(EXPLORER_MIN_WIDTH, Math.floor(viewport * 0.86)))
+    : Math.min(EXPLORER_MAX_WIDTH, Math.max(EXPLORER_MIN_WIDTH, Math.floor(viewport * 0.42)));
+  return { min: EXPLORER_MIN_WIDTH, max };
+}
+
+function clampExplorerWidth(value) {
+  const bounds = explorerWidthBounds();
+  return Math.max(bounds.min, Math.min(bounds.max, Math.round(value)));
+}
 
 function normalizePath(value) {
   return typeof value === 'string' ? value.replace(/\\/g, '/').toLowerCase() : '';
@@ -161,11 +178,91 @@ export function FolderExplorer({
   onToggleFolder,
   onOpenFile,
   onClose,
+  width = null,
+  onResize,
+  onResizeEnd,
+  onResetWidth,
 }) {
   const rootHasChildren = root && root.children && root.children.length > 0;
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeRef = useRef(null);
+
+  useEffect(() => () => {
+    if (resizeRef.current && resizeRef.current.raf !== null) cancelAnimationFrame(resizeRef.current.raf);
+    resizeRef.current = null;
+  }, []);
+
+  function emitResize(value, flush = false) {
+    const state = resizeRef.current;
+    if (!state || !onResize) return;
+    state.pending = clampExplorerWidth(value);
+    state.last = state.pending;
+    if (flush) {
+      if (state.raf !== null) cancelAnimationFrame(state.raf);
+      state.raf = null;
+      onResize(state.last);
+      return;
+    }
+    if (state.raf !== null) return;
+    state.raf = requestAnimationFrame(() => {
+      state.raf = null;
+      if (resizeRef.current === state) onResize(state.pending);
+    });
+  }
+
+  function startResize(event) {
+    if (!isOpen || !onResize) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const currentWidth = Number.isFinite(width)
+      ? width
+      : event.currentTarget.parentElement.getBoundingClientRect().width;
+    const startWidth = clampExplorerWidth(currentWidth);
+    resizeRef.current = { startX: event.clientX, startWidth, pending: startWidth, last: startWidth, raf: null };
+    setIsResizing(true);
+    if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveResize(event) {
+    const state = resizeRef.current;
+    if (!state) return;
+    emitResize(state.startWidth + event.clientX - state.startX);
+  }
+
+  function finishResize(event) {
+    const state = resizeRef.current;
+    if (!state) return;
+    emitResize(state.last, true);
+    if (onResizeEnd) onResizeEnd(state.last);
+    if (event.currentTarget.releasePointerCapture && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    resizeRef.current = null;
+    setIsResizing(false);
+  }
+
+  function resizeFromKeyboard(event) {
+    if (!isOpen || !onResize) return;
+    const bounds = explorerWidthBounds();
+    const current = clampExplorerWidth(Number.isFinite(width) ? width : bounds.min);
+    let next = current;
+    const step = event.shiftKey ? 32 : 8;
+    if (event.key === 'ArrowLeft') next = current - step;
+    else if (event.key === 'ArrowRight') next = current + step;
+    else if (event.key === 'Home') next = bounds.min;
+    else if (event.key === 'End') next = bounds.max;
+    else return;
+    event.preventDefault();
+    next = clampExplorerWidth(next);
+    onResize(next);
+    if (onResizeEnd) onResizeEnd(next);
+  }
 
   return h('aside', {
-    class: 'folder-explorer' + (isOpen ? ' is-open' : ' is-closed'),
+    class: 'folder-explorer' + (isOpen ? ' is-open' : ' is-closed') + (isResizing ? ' is-resizing' : ''),
+    style: Number.isFinite(width)
+      ? { '--explorer-width': `clamp(${EXPLORER_MIN_WIDTH}px, ${width}px, 86vw)` }
+      : undefined,
     'aria-label': 'Workspace files',
   },
     h('div', { class: 'explorer-inner' },
@@ -199,6 +296,23 @@ export function FolderExplorer({
         ),
         !rootHasChildren && h('p', { class: 'explorer-empty' }, 'No Markdown or text files here.'),
       )
-    )
+    ),
+    isOpen && h('div', {
+      class: 'explorer-resize-handle',
+      role: 'separator',
+      tabIndex: 0,
+      'aria-label': 'Resize workspace files sidebar',
+      'aria-orientation': 'vertical',
+      'aria-valuemin': String(EXPLORER_MIN_WIDTH),
+      'aria-valuemax': String(explorerWidthBounds().max),
+      'aria-valuenow': String(Number.isFinite(width) ? Math.round(width) : EXPLORER_MIN_WIDTH),
+      title: 'Drag to resize workspace files sidebar · Double-click to reset',
+      onPointerDown: startResize,
+      onPointerMove: moveResize,
+      onPointerUp: finishResize,
+      onPointerCancel: finishResize,
+      onKeyDown: resizeFromKeyboard,
+      onDoubleClick: () => onResetWidth && onResetWidth(),
+    }),
   )
 }
