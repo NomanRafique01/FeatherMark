@@ -4,7 +4,7 @@
 // middle-click close, "+" new tab. All glyphs are inline SVG — no unicode icons.
 
 import { h } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 
 function TabIcon({ children, size = 12 }) {
   return h('svg', {
@@ -36,10 +36,23 @@ function parentDirName(filePath) {
 export function TabBar({ tabs, activeId, onSelect, onClose, onNew, onReorder }) {
   const [draggingId, setDraggingId] = useState(null);
   const [dropTargetId, setDropTargetId] = useState(null);
+  const tabNodesRef = useRef(new Map());
 
   const nameCounts = new Map();
   for (const t of tabs) {
     nameCounts.set(t.name, (nameCounts.get(t.name) || 0) + 1);
+  }
+
+  useEffect(() => {
+    const node = tabNodesRef.current.get(activeId);
+    if (node) node.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }, [activeId]);
+
+  function handleTabWheel(event) {
+    if (Math.abs(event.deltaX) < Math.abs(event.deltaY) && event.deltaY !== 0) {
+      event.preventDefault();
+      event.currentTarget.scrollBy({ left: event.deltaY, behavior: 'auto' });
+    }
   }
 
   function handleKeyDown(e, tabId, index) {
@@ -61,11 +74,19 @@ export function TabBar({ tabs, activeId, onSelect, onClose, onNew, onReorder }) 
   }
 
   return h('nav', { class: 'tabbar', role: 'tablist', 'aria-label': 'Open files' },
+    h('div', {
+      class: 'tabbar-scroll',
+      onWheel: handleTabWheel,
+    },
     tabs.map((tab, idx) => {
       const isActive = tab.id === activeId;
       const isTarget = dropTargetId === tab.id && draggingId !== tab.id;
       return h('div', {
         key: tab.id,
+        ref: (node) => {
+          if (node) tabNodesRef.current.set(tab.id, node);
+          else tabNodesRef.current.delete(tab.id);
+        },
         class: 'tab' + (isActive ? ' is-active' : '') + (isTarget ? ' is-drop-target' : '') + (tab.missing ? ' is-missing' : ''),
         role: 'tab',
         'aria-selected': isActive,
@@ -134,7 +155,7 @@ export function TabBar({ tabs, activeId, onSelect, onClose, onNew, onReorder }) 
           },
         }, h(CloseIcon)),
       );
-    }),
+    })),
     h('button', {
       class: 'tab-new',
       'aria-label': 'New file',

@@ -307,14 +307,32 @@ button:disabled {
   gap: var(--space-2);
 }
 
-.folder-tabs {
+.folder-tabs-shell {
+  min-width: 0;
   max-width: min(52vw, 44rem);
-  overflow-x: auto;
-  scrollbar-width: none;
-  overscroll-behavior-x: contain;
+  flex: 0 1 min(52vw, 44rem);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
-.folder-tabs::-webkit-scrollbar { display: none; }
+.folder-tabs {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.folder-tabs::-webkit-scrollbar { height: 4px; }
+.folder-tabs::-webkit-scrollbar-track { background: transparent; }
+.folder-tabs::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 2px;
+}
 
 .app-folder-tab {
   min-width: 0;
@@ -657,8 +675,27 @@ button:disabled {
   background: var(--sidebar-bg);
   min-height: 1.875rem;
   border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+
+.tabbar-scroll {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: flex-end;
   overflow-x: auto;
-  scrollbar-width: none; /* chrome strip, not a scroll region */
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.tabbar-scroll::-webkit-scrollbar { height: 4px; }
+.tabbar-scroll::-webkit-scrollbar-track { background: transparent; }
+.tabbar-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 2px;
 }
 
 .tab {
@@ -767,7 +804,10 @@ button:disabled {
   color: var(--text-muted);
   line-height: 1;
   align-self: center;
-  margin: 0 var(--space-2);
+  margin: 0 var(--space-2) 0 var(--space-1);
+  position: sticky;
+  right: 0;
+  z-index: 3;
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 

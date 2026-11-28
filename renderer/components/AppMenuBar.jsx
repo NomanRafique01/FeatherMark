@@ -177,6 +177,7 @@ export function AppMenuBar({
 }) {
   const [openMenu, setOpenMenu] = useState(null);
   const navRef = useRef(null);
+  const folderNodesRef = useRef(new Map());
 
   useEffect(() => {
     const closeOnOutside = (e) => {
@@ -192,6 +193,27 @@ export function AppMenuBar({
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, []);
+
+  useEffect(() => {
+    const node = folderNodesRef.current.get(activeFolderId);
+    if (node) node.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }, [activeFolderId]);
+
+  function handleFolderWheel(event) {
+    if (Math.abs(event.deltaX) < Math.abs(event.deltaY) && event.deltaY !== 0) {
+      event.preventDefault();
+      event.currentTarget.scrollBy({ left: event.deltaY, behavior: 'auto' });
+    }
+  }
+
+  function handleFolderKeyDown(event, folderIndex) {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    if (folderTabs.length === 0) return;
+    const offset = event.key === 'ArrowRight' ? 1 : -1;
+    const next = folderTabs[(folderIndex + offset + folderTabs.length) % folderTabs.length];
+    if (next && onSelectFolder) onSelectFolder(next.id);
+  }
 
   return h(Fragment, null,
     h('nav', {
@@ -228,11 +250,21 @@ export function AppMenuBar({
       ),
     ),
     h('div', { class: 'app-menu-bar' },
-      h('div', { class: 'app-menu-context folder-tabs', role: 'tablist', 'aria-label': 'Open folders' },
-        folderTabs.map((folder) => {
+      h('div', { class: 'folder-tabs-shell' },
+        h('div', {
+          class: 'app-menu-context folder-tabs',
+          role: 'tablist',
+          'aria-label': 'Open folders',
+          onWheel: handleFolderWheel,
+        },
+        folderTabs.map((folder, folderIndex) => {
           const isActive = folder.id === activeFolderId;
           return h('div', {
             key: folder.id,
+            ref: (node) => {
+              if (node) folderNodesRef.current.set(folder.id, node);
+              else folderNodesRef.current.delete(folder.id);
+            },
             class: 'app-folder-tab' + (isActive ? ' is-active' : ''),
           },
             h('button', {
@@ -242,6 +274,7 @@ export function AppMenuBar({
               'aria-label': 'Open folder: ' + folder.name,
               'aria-selected': String(isActive),
               role: 'tab',
+              onKeyDown: (event) => handleFolderKeyDown(event, folderIndex),
               onClick: () => onSelectFolder && onSelectFolder(folder.id),
             },
               h('span', { class: 'app-folder-context-icon', 'aria-hidden': 'true' }, h(FolderIcon)),
@@ -258,7 +291,7 @@ export function AppMenuBar({
               },
             }, h(CloseIcon)),
           );
-        }),
+        })),
         h('button', {
           type: 'button',
           class: 'app-folder-new',
